@@ -1,0 +1,42 @@
+name: Deploy Masar to Production Server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Prepare SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p "${{ secrets.SSH_PORT }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync project files to server
+        run: |
+          rsync -az --delete             --exclude '.git'             --exclude '.github'             --exclude '__pycache__'             --exclude '.venv'             --exclude 'backend/db.sqlite3'             ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.SERVER_APP_DIR }}/
+
+      - name: Write production environment file on server
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          mkdir -p "${{ secrets.SERVER_APP_DIR }}"
+          cat > "${{ secrets.SERVER_APP_DIR }}/.env.production" << 'ENVEOF'
+          ${{ secrets.PROD_ENV_FILE }}
+          ENVEOF
+          EOF
+
+      - name: Deploy with Docker Compose
+        run: |
+          ssh -p "${{ secrets.SSH_PORT }}" ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          cd "${{ secrets.SERVER_APP_DIR }}"
+          docker compose -f docker-compose.prod.yml down || true
+          docker compose -f docker-compose.prod.yml up -d --build
+          docker image prune -f
+          EOF
