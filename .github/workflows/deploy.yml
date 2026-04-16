@@ -8,6 +8,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6e0545d9ed6178dd5154998120ab185e2a9ef1e6
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -21,7 +25,17 @@ jobs:
 
       - name: Sync project files to server
         run: |
+<<<<<<< HEAD
           rsync -az --delete             --exclude '.git'             --exclude '.github'             --exclude '__pycache__'             --exclude '.venv'             --exclude 'backend/db.sqlite3'             ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.SERVER_APP_DIR }}/
+=======
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '__pycache__' \
+            --exclude '.venv' \
+            --exclude 'backend/db.sqlite3' \
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.SERVER_APP_DIR }}/
+>>>>>>> 6e0545d9ed6178dd5154998120ab185e2a9ef1e6
 
       - name: Write production environment file on server
         run: |
