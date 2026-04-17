@@ -2,10 +2,6 @@ import os
 from pathlib import Path
 import dj_database_url
 
-CORS_ALLOWED_ORIGINS = [
-    "https://masar-mobile-vercel.vercel.app/",
-]
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEBUG = os.environ.get("DEBUG", "False") == "True"
@@ -40,7 +36,7 @@ STORAGES = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "https://اسم-مشروعك.vercel.app",
+    "https://masar-mobile-vercel.vercel.app",
 ]
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
