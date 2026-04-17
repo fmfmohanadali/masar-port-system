@@ -5,7 +5,7 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEBUG = os.environ.get("DEBUG", "False") == "True"
-
+SECRET_KEY = os.environ["SECRET_KEY"]
 ALLOWED_HOSTS = os.environ.get(
     "ALLOWED_HOSTS",
     "masar-backend-oxnm.onrender.com,localhost,127.0.0.1"
