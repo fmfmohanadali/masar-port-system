@@ -91,12 +91,19 @@ class TripViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(status=status_filter)
         return qs
 
+    def _ensure_qr_token(self, trip, regenerate=False):
+        if regenerate or not trip.qr_token:
+            trip.qr_token = trip.generate_qr_token()
+            trip.save(update_fields=['qr_token'])
+        return trip
+
     @action(detail=False, methods=['post'])
     def quick_create(self, request):
         serializer = QuickCreateTripSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
             trip = quick_create_trip(broker_user=request.user, data=serializer.validated_data)
+            trip = self._ensure_qr_token(trip)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(TripSerializer(trip, context={'request': request}).data, status=status.HTTP_201_CREATED)
@@ -104,9 +111,7 @@ class TripViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['post'])
     def generate_qr(self, request, pk=None):
         trip = self.get_object()
-        trip.qr_token = trip.generate_qr_token()
-        trip.generate_qr_image()
-        trip.save()
+        trip = self._ensure_qr_token(trip, regenerate=True)
         return Response(TripSerializer(trip, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
@@ -116,7 +121,6 @@ class TripViewSet(viewsets.ReadOnlyModelViewSet):
         trip.save(update_fields=['status', 'updated_at'])
         audit(request.user, 'UPDATE', 'Trip', trip.trip_code, 'Marked as delivered')
         return Response({'status': trip.status})
-
 
 class BookingSlotViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = BookingSlot.objects.all()
