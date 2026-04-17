@@ -16,7 +16,10 @@ from .serializers import (
 )
 from .permissions import IsOpsOrAdmin, CanScan
 from .services import quick_create_trip, scan_trip, dashboard_summary_for, turnaround_report_for, audit
+from django.http import JsonResponse
 
+def health(request):
+    return JsonResponse({"status": "ok"})
 
 class LoginAPIView(APIView):
     permission_classes = [permissions.AllowAny]

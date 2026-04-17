@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     LoginAPIView, LogoutAPIView, me, dashboard_summary, turnaround_report,
-    TripViewSet, BookingSlotViewSet, ScanPointViewSet, ScanEventViewSet, NotificationViewSet
+    TripViewSet, BookingSlotViewSet, ScanPointViewSet, ScanEventViewSet, NotificationViewSet,
+    health
 )
 
 router = DefaultRouter()
@@ -18,5 +19,6 @@ urlpatterns = [
     path('me/', me, name='me'),
     path('dashboard/summary/', dashboard_summary, name='dashboard-summary'),
     path('reports/turnaround/', turnaround_report, name='reports-turnaround'),
+    path('health/', health, name='health'),
     path('', include(router.urls)),
 ]
