@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f3d69" />
+  <meta name="description" content="واجهة تشغيل نهائية لنظام مسار" />
+  <title>مسار | تطبيق الجوال</title>
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    :root {
+      --primary:#0f3d69; --primary2:#14548f; --bg:#eef3f8; --card:#fff; --muted:#6e8197;
+      --ok:#1c9f5b; --warn:#d98900; --danger:#ce3c3c; --text:#1f2d3d; --radius:18px;
+      --shadow:0 14px 34px rgba(15,61,105,.12);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+    header{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;padding:18px 16px 20px;position:sticky;top:0;z-index:10;box-shadow:var(--shadow)}
+    header h1{margin:0 0 6px;font-size:1.35rem} header p{margin:0;font-size:.92rem;opacity:.9}
+    .wrap{max-width:940px;margin:0 auto;padding:16px}
+    .card{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);margin-bottom:14px}
+    .muted{color:var(--muted)} .small{font-size:.82rem}
+    .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 180px}
+    input,select,textarea,button{width:100%;padding:12px 14px;border-radius:14px;border:1px solid #d8e3ef;background:#fff;font:inherit}
+    textarea{min-height:88px;resize:vertical} label{display:block;margin-bottom:6px;color:var(--muted);font-size:.9rem}
+    button{cursor:pointer;border:none;background:var(--primary);color:#fff;font-weight:700}
+    button.secondary{background:#e9f0f8;color:var(--primary)} button.ok{background:var(--ok)} button.warn{background:var(--warn)} button.danger{background:var(--danger)}
+    .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}.tabs button.active{background:var(--ok)}
+    .section{display:none}.section.active{display:block}
+    .grid{display:grid;gap:12px}.stats{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+    .stat{font-size:1.4rem;font-weight:800}
+    .list{display:grid;gap:10px}.item{border:1px solid #e7eef6;border-radius:14px;padding:12px;background:#fcfdff}
+    .split{display:flex;justify-content:space-between;align-items:center;gap:10px}.split.wrap2{flex-wrap:wrap}
+    .pill{display:inline-flex;padding:4px 10px;border-radius:999px;color:#fff;font-size:.8rem;font-weight:700;background:var(--primary)}
+    .pill.ok{background:var(--ok)} .pill.warn{background:var(--warn)} .pill.danger{background:var(--danger)}
+    .hint{background:#f4f8fd;border-right:4px solid var(--primary);padding:10px 12px;border-radius:12px;margin-top:10px}
+    .hidden{display:none!important}
+    .center{text-align:center}
+    video{width:100%;max-height:280px;border-radius:14px;background:#000}
+    img.qr-preview{max-width:180px;border:1px solid #dfe8f1;border-radius:12px;padding:8px;background:white}
+    code{word-break:break-all}
+    @media (max-width:740px){.tabs{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>مسار | تطبيق الجوال</h1>
+    <p>نسخة تشغيل نهائية للبوابات والمخلصين وإدارة الميناء</p>
+  </header>
+
+  <div class="wrap">
+    <div id="loginCard" class="card">
+      <h2>تسجيل الدخول</h2>
+      <div class="row">
+        <div>
+          <label>عنوان الـ API</label>
+          <input id="apiBase" placeholder="https://masar-backend-oxnm.onrender.com/api" />
+        </div>
+        <div>
+          <label>اسم المستخدم</label>
+          <input id="username" placeholder="broker1" />
+        </div>
+        <div>
+          <label>كلمة المرور</label>
+          <input id="password" type="password" placeholder="Admin@12345" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button onclick="saveSettings()">حفظ الإعدادات</button>
+        <button class="ok" onclick="login()">دخول</button>
+        <button class="secondary" onclick="loadDemoCredentials()">بيانات تجريبية</button>
+      </div>
+      <p id="loginStatus" class="muted">غير مسجل الدخول</p>
+    </div>
+
+    <div id="appShell" class="hidden">
+      <div class="card split wrap2">
+        <div>
+          <strong id="whoami">-</strong>
+          <div class="muted small">تم تسجيل الدخول بنجاح</div>
+        </div>
+        <div class="row" style="flex:1 1 300px">
+          <button class="secondary" onclick="refreshAll()">تحديث</button>
+          <button class="secondary" onclick="syncOfflineQueue()">مزامنة الأوفلاين</button>
+          <button class="danger" onclick="logout()">خروج</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="active" data-tab="dashboard">اللوحة</button>
+        <button data-tab="trips">الرحلات</button>
+        <button data-tab="create">رحلة جديدة</button>
+        <button data-tab="scan">المسح</button>
+        <button data-tab="notifications">الإشعارات</button>
+      </div>
+
+      <section id="dashboard" class="section active">
+        <div class="grid stats">
+          <div class="card"><div class="muted">كل الرحلات</div><div id="totalTrips" class="stat">0</div></div>
+          <div class="card"><div class="muted">في الانتظار</div><div id="waitingTrips" class="stat">0</div></div>
+          <div class="card"><div class="muted">داخل الميناء</div><div id="insideTrips" class="stat">0</div></div>
+          <div class="card"><div class="muted">تم التسليم</div><div id="deliveredTrips" class="stat">0</div></div>
+        </div>
+        <div class="card">
+          <div class="split"><h2>أحدث الرحلات</h2><button class="secondary" onclick="loadDashboard()">تحديث</button></div>
+          <div id="dashboardTrips" class="list"></div>
+        </div>
+      </section>
+
+      <section id="trips" class="section">
+        <div class="card">
+          <div class="row">
+            <div>
+              <label>بحث</label>
+              <input id="tripSearch" placeholder="رقم الحاوية / رقم الشاحنة / السائق" />
+            </div>
+            <div>
+              <label>الحالة</label>
+              <select id="tripStatusFilter">
+                <option value="">الكل</option>
+                <option>CREATED</option><option>BOOKED</option><option>APPROVED</option>
+                <option>ENTERED_PORT</option><option>AT_BERTH</option><option>PASSED_CUSTOMS</option>
+                <option>EXITED_PORT</option><option>DELIVERED</option><option>CANCELLED</option>
+              </select>
+            </div>
+            <div style="align-self:flex-end"><button onclick="loadTrips()">فلترة</button></div>
+          </div>
+        </div>
+        <div id="tripList" class="list"></div>
+      </section>
+
+      <section id="create" class="section">
+        <div class="card">
+          <h2>إنشاء رحلة سريع</h2>
+          <div class="row">
+            <div><label>رقم الحاوية</label><input id="containerNo" placeholder="MSKU1234567" /></div>
+            <div><label>رقم الشاحنة</label><input id="truckPlate" placeholder="ADN-1003" /></div>
+          </div>
+          <div class="row">
+            <div><label>اسم السائق</label><input id="driverName" placeholder="أحمد محمد" /></div>
+            <div><label>هاتف السائق</label><input id="driverPhone" placeholder="777xxxxxx" /></div>
+          </div>
+          <div class="row">
+            <div><label>شركة النقل</label><input id="carrierCompanyName" placeholder="شركة الأمان للنقل" /></div>
+            <div><label>الوجهة</label><input id="destination" placeholder="صنعاء" /></div>
+          </div>
+          <div class="row">
+            <div><label>الموعد</label><input id="slotDatetime" type="datetime-local" /></div>
+            <div><label>ملاحظات</label><input id="tripNotes" placeholder="اختياري" /></div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button onclick="queueCreateTrip()">حفظ أوفلاين</button>
+            <button class="ok" onclick="submitCreateTrip()">إرسال وإنشاء الرحلة</button>
+          </div>
+          <div class="hint">إذا فشل الاتصال سيتم حفظ الطلب ضمن طابور المزامنة المحلي.</div>
+          <div id="createResult" class="center" style="margin-top:12px"></div>
+        </div>
+      </section>
+
+      <section id="scan" class="section">
+        <div class="card">
+          <h2>المسح والتتبع</h2>
+          <div class="row">
+            <div>
+              <label>نقطة العبور</label>
+              <select id="scanPointType"></select>
+            </div>
+            <div>
+              <label>ملاحظات</label>
+              <input id="scanNote" placeholder="تم التحقق" />
+            </div>
+          </div>
+          <label>QR Token</label>
+          <textarea id="qrTokenInput" placeholder="ألصق الرمز أو استخدم الكاميرا"></textarea>
+          <div class="row" style="margin-top:12px">
+            <button class="secondary" onclick="startScanner()">فتح الكاميرا</button>
+            <button class="secondary" onclick="stopScanner()">إيقاف الكاميرا</button>
+            <button onclick="queueScanAction()">حفظ أوفلاين</button>
+            <button class="ok" onclick="submitScanAction()">إرسال المسح</button>
+          </div>
+          <div id="barcodeSupport" class="muted small" style="margin-top:8px"></div>
+          <div id="videoWrap" class="hidden" style="margin-top:12px">
+            <video id="video" autoplay playsinline muted></video>
+          </div>
+        </div>
+        <div class="card">
+          <div class="split"><h2>طابور المزامنة</h2><button class="secondary" onclick="renderQueue()">تحديث</button></div>
+          <div id="queueList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="notifications" class="section">
+        <div class="card split"><h2>الإشعارات</h2><button class="secondary" onclick="loadNotifications()">تحديث</button></div>
+        <div id="notificationList" class="list"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const K = { settings:'masar_settings_v2', token:'masar_token_v2', queue:'masar_queue_v2', user:'masar_user_v2' };
+    let scannerStream = null;
+    let scannerInterval = null;
+
+function settings(){
+  return JSON.parse(localStorage.getItem(K.settings) || '{"apiBase":"https://masar-backend-oxnm.onrender.com/api","username":"","password":""}');
+}
+    function saveSettings(){
+      const payload = { apiBase: val('apiBase'), username: val('username'), password: val('password') };
+      localStorage.setItem(K.settings, JSON.stringify(payload));
+      setLoginStatus('تم حفظ الإعدادات');
+    }
+    function loadSettings(){ const s=settings(); setVal('apiBase',s.apiBase||''); setVal('username',s.username||''); setVal('password',s.password||''); }
+    function token(){ return localStorage.getItem(K.token) || ''; }
+    function setToken(t){ localStorage.setItem(K.token, t); }
+    function currentUser(){ return JSON.parse(localStorage.getItem(K.user) || 'null'); }
+    function setCurrentUser(u){ localStorage.setItem(K.user, JSON.stringify(u)); }
+    function queue(){ return JSON.parse(localStorage.getItem(K.queue) || '[]'); }
+    function setQueue(v){ localStorage.setItem(K.queue, JSON.stringify(v)); }
+    function val(id){ return document.getElementById(id).value.trim(); }
+    function setVal(id,v){ document.getElementById(id).value = v; }
+    function setLoginStatus(msg){ document.getElementById('loginStatus').textContent = msg; }
+    function authHeaders(json=true){ const h={ 'Authorization': 'Token ' + token() }; if(json) h['Content-Type']='application/json'; return h; }
+    function api(path){ return settings().apiBase.replace(/\/$/, '') + path; }
+
+    async function request(path, options={}){
+      const res = await fetch(api(path), options);
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
+      if(!res.ok) throw new Error(data.detail || JSON.stringify(data));
+      return data;
+    }
+
+    async function login(){
+      saveSettings();
+      try {
+        const data = await request('/auth/login/', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ username: val('username'), password: val('password') })});
+        setToken(data.token); setCurrentUser(data.user);
+        document.getElementById('loginCard').classList.add('hidden');
+        document.getElementById('appShell').classList.remove('hidden');
+        document.getElementById('whoami').textContent = `${data.user.username} - ${data.user.profile?.role || ''}`;
+        await loadScanPoints();
+        await refreshAll();
+      } catch(err){ setLoginStatus('فشل تسجيل الدخول: ' + err.message); }
+    }
+
+    async function logout(){
+      try { if(token()) await request('/auth/logout/', {method:'POST', headers:authHeaders()}); } catch(_){}
+      localStorage.removeItem(K.token); localStorage.removeItem(K.user);
+      document.getElementById('loginCard').classList.remove('hidden');
+      document.getElementById('appShell').classList.add('hidden');
+      setLoginStatus('تم تسجيل الخروج');
+    }
+
+    function loadDemoCredentials(){ setVal('username','broker1'); setVal('password','Admin@12345'); }
+
+    function statusClass(status){
+      if(['DELIVERED','EXITED_PORT'].includes(status)) return 'ok';
+      if(['CREATED','BOOKED','APPROVED'].includes(status)) return 'warn';
+      if(['CANCELLED'].includes(status)) return 'danger';
+      return '';
+    }
+
+    function renderTripItem(t){
+      return `
+        <div class="item">
+          <div class="split wrap2">
+            <div><strong>${t.container_no || "-"}</strong> — ${t.truck_plate || ''}</div>
+            <span class="pill ${statusClass(t.status)}">${t.status}</span>
+          </div>
+          <div class="small muted">السائق: ${t.driver_name || ''} | الوجهة: ${t.destination || ''}</div>
+          <div class="small muted">الموعد: ${t.slot_label || ''}</div>
+          <div class="small">الرحلة: <code>${t.trip_code}</code></div>
+          ${t.qr_image_url ? `<div style="margin-top:8px"><img class="qr-preview" src="${t.qr_image_url}" alt="QR" /></div>` : ''}
+          <div class="row" style="margin-top:8px">
+            <button class="secondary" onclick="copyToken('${(t.qr_token || '').replace(/'/g, "&#39;")}')">نسخ التوكن</button>
+            <button class="secondary" onclick="regenerateQr(${t.id})">تجديد QR</button>
+            <button class="ok" onclick="markDelivered(${t.id})">تم التسليم</button>
+          </div>
+        </div>`;
+    }
+
+    async function loadDashboard(){
+      const data = await request('/dashboard/summary/', {headers:authHeaders(false)});
+      document.getElementById('totalTrips').textContent = data.total_trips;
+      document.getElementById('waitingTrips').textContent = data.waiting_trips;
+      document.getElementById('insideTrips').textContent = data.inside_port;
+      document.getElementById('deliveredTrips').textContent = data.delivered;
+      const holder = document.getElementById('dashboardTrips');
+      holder.innerHTML = data.recent_trips.length ? data.recent_trips.map(renderTripItem).join('') : '<div class="item muted">لا توجد بيانات.</div>';
+    }
+
+    async function loadTrips(){
+      const s = val('tripSearch'); const st = val('tripStatusFilter');
+      const params = new URLSearchParams(); if(s) params.set('search',s); if(st) params.set('status',st);
+      const data = await request('/trips/?' + params.toString(), {headers:authHeaders(false)});
+      const results = data.results || data;
+      document.getElementById('tripList').innerHTML = results.length ? results.map(renderTripItem).join('') : '<div class="item muted">لا توجد رحلات مطابقة.</div>';
+    }
+
+    async function loadNotifications(){
+      const data = await request('/notifications/', {headers:authHeaders(false)});
+      const results = data.results || data;
+      document.getElementById('notificationList').innerHTML = results.length ? results.map(n => `
+        <div class="item">
+          <div class="split wrap2"><strong>${n.title}</strong><span class="pill ${n.is_read ? 'ok' : 'warn'}">${n.is_read ? 'مقروءة' : 'جديدة'}</span></div>
+          <div>${n.message}</div>
+          <div class="small muted">${new Date(n.created_at).toLocaleString()}</div>
+          ${!n.is_read ? `<button class="secondary" style="margin-top:8px" onclick="markNotificationRead(${n.id})">تحديد كمقروءة</button>` : ''}
+        </div>
+      `).join('') : '<div class="item muted">لا توجد إشعارات.</div>';
+    }
+
+    async function markNotificationRead(id){
+      await request(`/notifications/${id}/mark_read/`, {method:'POST', headers:authHeaders()});
+      await loadNotifications();
+    }
+
+    async function loadScanPoints(){
+      const data = await request('/scan-points/', {headers:authHeaders(false)});
+      const results = data.results || data;
+      const select = document.getElementById('scanPointType');
+      select.innerHTML = results.map(p => `<option value="${p.point_type}">${p.name}</option>`).join('');
+    }
+
+    function createTripPayload(){
+      return {
+        container_no: val('containerNo'),
+        truck_plate: val('truckPlate'),
+        driver_name: val('driverName'),
+        driver_phone: val('driverPhone'),
+        destination: val('destination'),
+        carrier_company_name: val('carrierCompanyName'),
+        slot_datetime: document.getElementById('slotDatetime').value,
+        notes: val('tripNotes')
+      };
+    }
+
+    function enqueue(item){ const q=queue(); q.push({...item, queuedAt:new Date().toISOString()}); setQueue(q); renderQueue(); }
+
+    function queueCreateTrip(){
+      const payload = createTripPayload();
+      if(!payload.container_no || !payload.truck_plate || !payload.slot_datetime){ alert('أدخل الحقول الأساسية'); return; }
+      enqueue({type:'create-trip', payload});
+      document.getElementById('createResult').innerHTML = '<span class="pill warn">تم حفظ الطلب ضمن الأوفلاين</span>';
+    }
+
+    async function submitCreateTrip(){
+      const payload = createTripPayload();
+      try{
+        const data = await request('/trips/quick_create/', {method:'POST', headers:authHeaders(), body:JSON.stringify(payload)});
+        document.getElementById('createResult').innerHTML = `<div class="item"><div><strong>تم إنشاء الرحلة بنجاح</strong></div><div class="small"><code>${data.trip_code}</code></div>${data.qr_image_url ? `<img class="qr-preview" src="${data.qr_image_url}" />` : ''}</div>`;
+        await refreshAll();
+      }catch(err){
+        enqueue({type:'create-trip', payload});
+        document.getElementById('createResult').innerHTML = `<span class="pill danger">فشل الإرسال، تم حفظه أوفلاين: ${err.message}</span>`;
+      }
+    }
+
+    async function regenerateQr(id){
+      const data = await request(`/trips/${id}/generate_qr/`, {method:'POST', headers:authHeaders()});
+      await refreshAll();
+      alert('تم تحديث QR بنجاح');
+    }
+
+    async function markDelivered(id){
+      await request(`/trips/${id}/mark_delivered/`, {method:'POST', headers:authHeaders()});
+      await refreshAll();
+    }
+
+    function copyToken(tokenText){
+      navigator.clipboard.writeText(tokenText || '').then(()=>alert('تم نسخ التوكن'));
+    }
+
+    function scanPayload(){ return { token: val('qrTokenInput'), point_type: val('scanPointType'), note: val('scanNote') }; }
+
+    function queueScanAction(){
+      const payload = scanPayload();
+      if(!payload.token){ alert('ألصق التوكن أو استخدم الكاميرا'); return; }
+      enqueue({type:'scan', payload});
+    }
+
+    async function submitScanAction(){
+      const payload = scanPayload();
+      try{
+        const data = await request('/scan-events/scan/', {method:'POST', headers:authHeaders(), body:JSON.stringify(payload)});
+        alert('تم تسجيل المرور وتحديث حالة الرحلة إلى: ' + data.trip.status);
+        setVal('qrTokenInput',''); setVal('scanNote','');
+        await refreshAll();
+      }catch(err){
+        enqueue({type:'scan', payload});
+        alert('تعذر الإرسال، تم الحفظ أوفلاين: ' + err.message);
+      }
+    }
+
+    async function syncOfflineQueue(){
+      const items = [...queue()];
+      if(!items.length) return alert('لا توجد عناصر ضمن طابور المزامنة');
+      const failed = [];
+      for(const item of items){
+        try{
+          if(item.type === 'create-trip'){
+            await request('/trips/quick_create/', {method:'POST', headers:authHeaders(), body:JSON.stringify(item.payload)});
+          } else if(item.type === 'scan'){
+            await request('/scan-events/scan/', {method:'POST', headers:authHeaders(), body:JSON.stringify(item.payload)});
+          }
+        }catch(err){ failed.push(item); }
+      }
+      setQueue(failed);
+      renderQueue();
+      await refreshAll();
+      alert(`اكتملت المزامنة. المتبقي: ${failed.length}`);
+    }
+
+    function renderQueue(){
+      const items = queue();
+      document.getElementById('queueList').innerHTML = items.length ? items.map((item, idx)=>`
+        <div class="item">
+          <div class="split wrap2"><strong>${item.type}</strong><button class="danger" style="width:auto" onclick="removeQueue(${idx})">حذف</button></div>
+          <div class="small muted">${item.queuedAt}</div>
+          <pre class="small" style="white-space:pre-wrap">${JSON.stringify(item.payload,null,2)}</pre>
+        </div>
+      `).join('') : '<div class="item muted">الطابور فارغ.</div>';
+    }
+    function removeQueue(idx){ const items=queue(); items.splice(idx,1); setQueue(items); renderQueue(); }
+
+    async function refreshAll(){ await Promise.all([loadDashboard(), loadTrips(), loadNotifications()]); }
+
+    function initTabs(){
+      document.querySelectorAll('.tabs button').forEach(btn => btn.addEventListener('click', ()=>{
+        document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+        document.querySelectorAll('.section').forEach(s=>s.classList.remove('active')); document.getElementById(btn.dataset.tab).classList.add('active');
+      }));
+    }
+
+    async function startScanner(){
+      const support = 'BarcodeDetector' in window;
+      document.getElementById('barcodeSupport').textContent = support ? 'المتصفح يدعم BarcodeDetector - يمكن المسح بالكاميرا.' : 'المتصفح لا يدعم BarcodeDetector، استخدم اللصق اليدوي أو Chrome/Edge على Android.';
+      if(!navigator.mediaDevices?.getUserMedia){ alert('الكاميرا غير متاحة في هذا المتصفح'); return; }
+      try{
+        scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        const video = document.getElementById('video');
+        video.srcObject = scannerStream;
+        document.getElementById('videoWrap').classList.remove('hidden');
+        if(support){
+          const detector = new BarcodeDetector({ formats: ['qr_code'] });
+          scannerInterval = setInterval(async ()=>{
+            try{
+              const barcodes = await detector.detect(video);
+              if(barcodes.length){
+                document.getElementById('qrTokenInput').value = barcodes[0].rawValue || '';
+                stopScanner();
+                alert('تم التقاط الرمز بنجاح');
+              }
+            }catch(_){ }
+          }, 700);
+        }
+      }catch(err){ alert('تعذر فتح الكاميرا: ' + err.message); }
+    }
+
+    function stopScanner(){
+      if(scannerInterval){ clearInterval(scannerInterval); scannerInterval = null; }
+      if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream = null; }
+      document.getElementById('videoWrap').classList.add('hidden');
+    }
+
+    window.addEventListener('load', async ()=>{
+      initTabs(); loadSettings(); renderQueue(); loadDemoCredentials();
+      if('serviceWorker' in navigator){ navigator.serviceWorker.register('./service-worker.js').catch(()=>{}); }
+      const user = currentUser();
+      if(token() && user){
+        document.getElementById('loginCard').classList.add('hidden');
+        document.getElementById('appShell').classList.remove('hidden');
+        document.getElementById('whoami').textContent = `${user.username} - ${user.profile?.role || ''}`;
+        try{ await loadScanPoints(); await refreshAll(); }catch(err){ console.warn(err); }
+      }
+      document.getElementById('barcodeSupport').textContent = ('BarcodeDetector' in window) ? 'المتصفح يدعم BarcodeDetector.' : 'المتصفح الحالي لا يدعم BarcodeDetector.';
+    });
+  </script>
+</body>
+</html>
