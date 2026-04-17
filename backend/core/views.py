@@ -106,7 +106,7 @@ class TripViewSet(viewsets.ReadOnlyModelViewSet):
         trip = self.get_object()
         trip.qr_token = trip.generate_qr_token()
         trip.generate_qr_image()
-        trip.save(update_fields=['qr_token'])
+        trip.save()
         return Response(TripSerializer(trip, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
