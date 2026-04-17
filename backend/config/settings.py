@@ -2,6 +2,10 @@ import os
 from pathlib import Path
 import dj_database_url
 
+CORS_ALLOWED_ORIGINS = [
+    "https://masar-mobile-vercel.vercel.app/",
+]
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEBUG = os.environ.get("DEBUG", "False") == "True"
