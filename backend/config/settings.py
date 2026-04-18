@@ -3,7 +3,8 @@ from pathlib import Path
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 SECRET_KEY = os.environ["SECRET_KEY"]

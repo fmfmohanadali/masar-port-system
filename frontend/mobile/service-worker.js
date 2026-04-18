@@ -1,6 +1,6 @@
 const CACHE_NAME = 'masar-mobile-v2';
 const ASSETS = [
-  './mobile_masar.html',
+  './index.html',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -23,7 +23,7 @@ self.addEventListener('fetch', event => {
         const copy = response.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
         return response;
-      }).catch(() => caches.match('./mobile_masar.html'));
+      }).catch(() => caches.match('./index.html'));
     })
   );
 });

@@ -1,4 +1,6 @@
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from .views import (
     LoginAPIView, LogoutAPIView, me, dashboard_summary, turnaround_report,
@@ -21,4 +23,4 @@ urlpatterns = [
     path('reports/turnaround/', turnaround_report, name='reports-turnaround'),
     path('health/', health, name='health'),
     path('', include(router.urls)),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
