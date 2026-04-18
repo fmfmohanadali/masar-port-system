@@ -38,9 +38,7 @@ class DriverSerializer(serializers.ModelSerializer):
 
 
 class TruckSerializer(serializers.ModelSerializer):
-    owner_company_name = serializers.CharField(
-        source='owner_company.name', read_only=True
-    )
+    owner_company_name = serializers.CharField(source='owner_company.name', read_only=True)
 
     class Meta:
         model = Truck
@@ -62,24 +60,11 @@ class BookingSlotSerializer(serializers.ModelSerializer):
 
 
 class TripSerializer(serializers.ModelSerializer):
-    broker_username = serializers.CharField(
-        source='broker.username', read_only=True
-    )
-    carrier_company_name = serializers.CharField(
-        source='carrier_company.name', read_only=True
-    )
-    truck_plate = serializers.CharField(
-        source='truck.plate_number', read_only=True
-    )
-    driver_name = serializers.CharField(
-        source='driver.full_name', read_only=True
-    )
-    driver_phone = serializers.CharField(
-        source='driver.phone_number', read_only=True
-    )
-    container_no = serializers.CharField(
-        source='container.container_no', read_only=True
-    )
+    broker_username = serializers.CharField(source='broker.username', read_only=True)
+    carrier_company_name = serializers.CharField(source='carrier_company.name', read_only=True)
+    truck_plate = serializers.CharField(source='truck.plate_number', read_only=True)
+    driver_name = serializers.CharField(source='driver.full_name', read_only=True)
+    container_no = serializers.CharField(source='container.container_no', read_only=True)
 
     slot_label = serializers.SerializerMethodField()
     qr_image_url = serializers.SerializerMethodField()
@@ -98,7 +83,6 @@ class TripSerializer(serializers.ModelSerializer):
             'carrier_company_name',
             'truck_plate',
             'driver_name',
-            'driver_phone',
             'container_no',
             'qr_token',
             'qr_image_url',
@@ -114,14 +98,17 @@ class TripSerializer(serializers.ModelSerializer):
 
     def get_slot_label(self, obj):
         if obj.slot:
-            return f"{obj.slot.date} {obj.slot.hour:02d}:00"
+            try:
+                return f"{obj.slot.date} {obj.slot.hour:02d}:00"
+            except Exception:
+                return str(obj.slot)
         return ""
 
     def get_qr_image_url(self, obj):
         """
         IMPORTANT:
-        Render Free + WhiteNoise => no reliable media files.
-        This method MUST be safe and never raise exception.
+        On Render Free, local media files are not reliable.
+        This must NEVER raise an exception.
         """
         qr_file = getattr(obj, 'qr_image', None)
         if not qr_file:
@@ -154,15 +141,9 @@ class ScanPointSerializer(serializers.ModelSerializer):
 
 
 class ScanEventSerializer(serializers.ModelSerializer):
-    trip_code = serializers.CharField(
-        source='trip.trip_code', read_only=True
-    )
-    scan_point_name = serializers.CharField(
-        source='scan_point.name', read_only=True
-    )
-    scanned_by_name = serializers.CharField(
-        source='scanned_by.username', read_only=True
-    )
+    trip_code = serializers.CharField(source='trip.trip_code', read_only=True)
+    scan_point_name = serializers.CharField(source='scan_point.name', read_only=True)
+    scanned_by_name = serializers.CharField(source='scanned_by.username', read_only=True)
 
     class Meta:
         model = ScanEvent
