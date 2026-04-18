@@ -81,8 +81,12 @@ class TripSerializer(serializers.ModelSerializer):
     def get_qr_image_url(self, obj):
         request = self.context.get('request')
         if obj.qr_image:
+            # استخدام request.build_absolute_uri لضمان الحصول على http://domain.com/media/...
             url = obj.qr_image.url
-            return request.build_absolute_uri(url) if request else url
+            if request is not None:
+                return request.build_absolute_uri(url)
+            # حل احتياطي في حال عدم وجود request (مثلاً عند استدعاء السيرياليزر من خارج الـ view)
+            return f"http://localhost:8000{url}" # تأكد من تغيير هذا في الإنتاج
         return None
 
 
