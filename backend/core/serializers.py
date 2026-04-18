@@ -1,6 +1,5 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from rest_framework.authtoken.models import Token
 from .models import (
     UserProfile, Company, Driver, Truck, Container, BookingSlot,
     Trip, ScanPoint, ScanEvent, Notification, AuditLog
@@ -39,7 +38,9 @@ class DriverSerializer(serializers.ModelSerializer):
 
 
 class TruckSerializer(serializers.ModelSerializer):
-    owner_company_name = serializers.CharField(source='owner_company.name', read_only=True)
+    owner_company_name = serializers.CharField(
+        source='owner_company.name', read_only=True
+    )
 
     class Meta:
         model = Truck
@@ -61,28 +62,78 @@ class BookingSlotSerializer(serializers.ModelSerializer):
 
 
 class TripSerializer(serializers.ModelSerializer):
-    broker_username = serializers.CharField(source='broker.username', read_only=True)
-    carrier_company_name = serializers.CharField(source='carrier_company.name', read_only=True)
-    truck_plate = serializers.CharField(source='truck.plate_number', read_only=True)
-    driver_name = serializers.CharField(source='driver.full_name', read_only=True)
-    container_no = serializers.CharField(source='container.container_no', read_only=True)
+    broker_username = serializers.CharField(
+        source='broker.username', read_only=True
+    )
+    carrier_company_name = serializers.CharField(
+        source='carrier_company.name', read_only=True
+    )
+    truck_plate = serializers.CharField(
+        source='truck.plate_number', read_only=True
+    )
+    driver_name = serializers.CharField(
+        source='driver.full_name', read_only=True
+    )
+    driver_phone = serializers.CharField(
+        source='driver.phone_number', read_only=True
+    )
+    container_no = serializers.CharField(
+        source='container.container_no', read_only=True
+    )
+
     slot_label = serializers.SerializerMethodField()
     qr_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Trip
-        fields = '__all__'
-        read_only_fields = ['trip_code', 'qr_token', 'qr_image', 'created_at', 'updated_at']
+        fields = [
+            'id',
+            'trip_code',
+            'status',
+            'destination',
+            'notes',
+            'slot_datetime',
+            'slot_label',
+            'broker_username',
+            'carrier_company_name',
+            'truck_plate',
+            'driver_name',
+            'driver_phone',
+            'container_no',
+            'qr_token',
+            'qr_image_url',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'trip_code',
+            'qr_token',
+            'created_at',
+            'updated_at',
+        ]
 
     def get_slot_label(self, obj):
-        return f"{obj.slot.date} {obj.slot.hour:02d}:00"
+        if obj.slot:
+            return f"{obj.slot.date} {obj.slot.hour:02d}:00"
+        return ""
 
     def get_qr_image_url(self, obj):
+        """
+        IMPORTANT:
+        Render Free + WhiteNoise => no reliable media files.
+        This method MUST be safe and never raise exception.
+        """
+        qr_file = getattr(obj, 'qr_image', None)
+        if not qr_file:
+            return None
+
+        try:
+            url = qr_file.url
+        except Exception:
+            return None
+
         request = self.context.get('request')
-        if obj.qr_image:
-            url = obj.qr_image.url
-            return request.build_absolute_uri(url) if request else url
-        return None
+        return request.build_absolute_uri(url) if request else url
 
 
 class QuickCreateTripSerializer(serializers.Serializer):
@@ -103,9 +154,15 @@ class ScanPointSerializer(serializers.ModelSerializer):
 
 
 class ScanEventSerializer(serializers.ModelSerializer):
-    trip_code = serializers.CharField(source='trip.trip_code', read_only=True)
-    scan_point_name = serializers.CharField(source='scan_point.name', read_only=True)
-    scanned_by_name = serializers.CharField(source='scanned_by.username', read_only=True)
+    trip_code = serializers.CharField(
+        source='trip.trip_code', read_only=True
+    )
+    scan_point_name = serializers.CharField(
+        source='scan_point.name', read_only=True
+    )
+    scanned_by_name = serializers.CharField(
+        source='scanned_by.username', read_only=True
+    )
 
     class Meta:
         model = ScanEvent
