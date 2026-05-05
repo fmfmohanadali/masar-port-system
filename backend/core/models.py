@@ -196,6 +196,155 @@ class Trip(TimeStampedModel):
         super().save(update_fields=['qr_image'])
         return self.qr_image.url if self.qr_image else ''
 
+class TransportRequest(TimeStampedModel):
+    ('VERIFIED', 'تم التحقق'),    STATUS_CHOICES = [
+        ('OFFERS_SENT', 'تم إرسال العروض'),
+        ('CARRIER_SELECTED', 'تم اختيار شركة النقل'),
+        ('PAID', 'مدفوع'),
+        ('DRIVER_ASSIGNED', 'تم تخصيص السائق'),
+        ('PORT_SLOT_BOOKED', 'تم حجز موعد الميناء'),
+        ('QR_ISSUED', 'تم إصدار QR'),
+        ('COMPLETED', 'مكتمل'),
+        ('CANCELLED', 'ملغى'),
+    ]
+
+    requester = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='transport_requests'
+    )
+
+    container_no = models.CharField(max_length=30)
+    bl_no = models.CharField(max_length=80, blank=True, null=True)
+    vessel_name = models.CharField(max_length=160, blank=True, null=True)
+    release_date = models.DateField(blank=True, null=True)
+    arrival_port = models.CharField(max_length=160, blank=True, null=True)
+    destination = models.CharField(max_length=255)
+
+    release_document = models.FileField(
+        upload_to='release_documents/',
+        blank=True,
+        null=True
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default='DRAFT'
+    )
+
+    selected_carrier = models.ForeignKey(
+        Company,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='selected_transport_requests'
+    )
+
+    agreed_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True
+    )
+
+    assigned_driver = models.ForeignKey(
+        Driver,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='transport_requests'
+    )
+
+    assigned_truck = models.ForeignKey(
+        Truck,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='transport_requests'
+    )
+
+    slot = models.ForeignKey(
+        BookingSlot,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='transport_requests'
+    )
+
+    linked_trip = models.OneToOneField(
+        Trip,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='transport_request'
+    )
+
+    notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return f"{self.container_no} - {self.status}"
+
+
+class TransportOffer(TimeStampedModel):
+    STATUS_CHOICES = [
+        ('PENDING', 'معلق'),
+        ('ACCEPTED', 'مقبول'),
+        ('REJECTED', 'مرفوض'),
+    ]
+
+    request = models.ForeignKey(
+        TransportRequest,
+        on_delete=models.CASCADE,
+        related_name='offers'
+    )
+
+    carrier_company = models.ForeignKey(
+        Company,
+        on_delete=models.PROTECT,
+        related_name='transport_offers'
+    )
+
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    estimated_pickup_at = models.DateTimeField(blank=True, null=True)
+    note = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+
+    class Meta:
+        unique_together = ('request', 'carrier_company')
+        ordering = ('price', 'created_at')
+
+    def __str__(self):
+        return f"{self.request.container_no} - {self.carrier_company.name} - {self.price}"
+
+
+class TransportPayment(TimeStampedModel):
+    STATUS_CHOICES = [
+        ('PENDING', 'معلق'),
+        ('PAID', 'مدفوع'),
+        ('FAILED', 'فشل'),
+        ('REFUNDED', 'مسترجع'),
+    ]
+
+    request = models.OneToOneField(
+        TransportRequest,
+        on_delete=models.CASCADE,
+        related_name='payment'
+    )
+
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    method = models.CharField(max_length=60, default='manual')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    transaction_ref = models.CharField(max_length=160, blank=True, null=True)
+    paid_at = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.request.container_no} - {self.status}"
+        ('DRAFT', 'مسودة'),
+
 
 class ScanPoint(TimeStampedModel):
     POINT_CHOICES = [

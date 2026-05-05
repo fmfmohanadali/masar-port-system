@@ -5,7 +5,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     LoginAPIView, LogoutAPIView, me, dashboard_summary, turnaround_report,
     TripViewSet, BookingSlotViewSet, ScanPointViewSet, ScanEventViewSet, NotificationViewSet,
-    health
+    health,TransportRequestViewSet, TransportOfferViewSet, TransportPaymentViewSet
 )
 
 router = DefaultRouter()
@@ -14,6 +14,9 @@ router.register('booking-slots', BookingSlotViewSet, basename='booking-slot')
 router.register('scan-points', ScanPointViewSet, basename='scan-point')
 router.register('scan-events', ScanEventViewSet, basename='scan-event')
 router.register('notifications', NotificationViewSet, basename='notification')
+router.register('transport-requests', TransportRequestViewSet, basename='transport-request')
+router.register('transport-offers', TransportOfferViewSet, basename='transport-offer')
+router.register('transport-payments', TransportPaymentViewSet, basename='transport-payment')
 
 urlpatterns = [
     path('auth/login/', LoginAPIView.as_view(), name='auth-login'),

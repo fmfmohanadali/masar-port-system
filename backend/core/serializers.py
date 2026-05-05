@@ -4,7 +4,7 @@ from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from .models import (
     UserProfile, Company, Driver, Truck, Container, BookingSlot,
-    Trip, ScanPoint, ScanEvent, Notification, AuditLog
+    Trip, ScanPoint, ScanEvent, Notification, AuditLog, TransportRequest, TransportOffer, TransportPayment
 )
 
 
@@ -99,6 +99,66 @@ class QuickCreateTripSerializer(serializers.Serializer):
     carrier_company_name = serializers.CharField(max_length=255)
     slot_datetime = serializers.DateTimeField()
     notes = serializers.CharField(required=False, allow_blank=True)
+
+class TransportOfferSerializer(serializers.ModelSerializer):
+    carrier Meta:    carrier_company_name = serializers.CharField(source='carrier_company.name', read_only=True)
+        model = TransportOffer
+        fields = '__all__'
+
+
+class TransportPaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TransportPayment
+        fields = '__all__'
+
+
+class TransportRequestSerializer(serializers.ModelSerializer):
+    requester_username = serializers.CharField(source='requester.username', read_only=True)
+    selected_carrier_name = serializers.CharField(source='selected_carrier.name', read_only=True)
+    assigned_driver_name = serializers.CharField(source='assigned_driver.full_name', read_only=True)
+    assigned_truck_plate = serializers.CharField(source='assigned_truck.plate_number', read_only=True)
+    slot_label = serializers.SerializerMethodField()
+    linked_trip_code = serializers.CharField(source='linked_trip.trip_code', read_only=True)
+    qr_token = serializers.CharField(source='linked_trip.qr_token', read_only=True)
+    qr_image_url = serializers.SerializerMethodField()
+    offers = TransportOfferSerializer(many=True, read_only=True)
+    payment = TransportPaymentSerializer(read_only=True)
+
+    class Meta:
+        model = TransportRequest
+        fields = '__all__'
+        read_only_fields = [
+            'requester',
+            'status',
+            'selected_carrier',
+            'agreed_price',
+            'assigned_driver',
+            'assigned_truck',
+            'slot',
+            'linked_trip',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_slot_label(self, obj):
+        if not obj.slot:
+            return None
+        return f"{obj.slot.date} {obj.slot.hour:02d}:00"
+
+    def get_qr_image_url(self, obj):
+        request = self.context.get('request')
+        trip = obj.linked_trip
+
+        if not trip or not trip.qr_image:
+            return None
+
+        url = trip.qr_image.url
+
+        if request is not None:
+            return request.build_absolute_uri(url)
+
+        return url
+
 
 
 class ScanPointSerializer(serializers.ModelSerializer):

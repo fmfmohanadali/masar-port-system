@@ -1,18 +1,19 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import status, viewsets, permissions
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Company, Driver, Truck, Container, BookingSlot, Trip, ScanPoint, ScanEvent, Notification
+from .models import Company, Driver, Truck, Container, BookingSlot, Trip, ScanPoint, ScanEvent, Notification,TransportRequest, TransportOffer, TransportPayment
 from .serializers import (
     LoginSerializer, UserSerializer, CompanySerializer, DriverSerializer,
     TruckSerializer, ContainerSerializer, BookingSlotSerializer, TripSerializer,
     QuickCreateTripSerializer, ScanPointSerializer, ScanEventSerializer,
-    ScanActionSerializer, NotificationSerializer
+    ScanActionSerializer, NotificationSerializer,TransportRequestSerializer, TransportOfferSerializer, TransportPaymentSerializer
 )
 from .permissions import IsOpsOrAdmin, CanScan
 from .services import quick_create_trip, scan_trip, dashboard_summary_for, turnaround_report_for, audit
@@ -165,6 +166,240 @@ class ScanEventViewSet(viewsets.ReadOnlyModelViewSet):
             'event': ScanEventSerializer(event).data,
         })
 
+class TransportRequestViewSet(viewsets.ModelViewSet):class TransportRequestViewSet(viewsets.ModelViewSet permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        role = getattr(getattr(user, 'profile', None), 'role', 'broker')
+
+        qs = TransportPayment.objects.select_related('request').all()
+
+        if role == 'broker':
+            qs = qs.filter(request__requester=user)
+
+        return qs
+    serializer_class = TransportRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        role = getattr(getattr(user, 'profile', None), 'role', 'broker')
+
+        qs = TransportRequest.objects.select_related(
+            'requester',
+            'selected_carrier',
+            'assigned_driver',
+            'assigned_truck',
+            'slot',
+            'linked_trip',
+        ).prefetch_related('offers').all()
+
+        if role == 'broker':
+            qs = qs.filter(requester=user)
+
+        return qs
+
+    def perform_create(self, serializer):
+        obj = serializer.save(requester=self.request.user, status='DRAFT')
+        audit(
+            self.request.user,
+            'CREATE',
+            'TransportRequest',
+            obj.id,
+            f'Created transport request for container {obj.container_no}'
+        )
+
+    @action(detail=True, methods=['post'])
+    def verify(self, request, pk=None):
+        obj = self.get_object()
+        obj.status = 'VERIFIED'
+        obj.save(update_fields=['status', 'updated_at'])
+
+        audit(request.user, 'UPDATE', 'TransportRequest', obj.id, 'Verified transport request')
+
+        return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=['post'])
+    def send_offers(self, request, pk=None):
+        obj = self.get_object()
+        obj.status = 'OFFERS_SENT'
+        obj.save(update_fields=['status', 'updated_at'])
+
+        audit(request.user, 'UPDATE', 'TransportRequest', obj.id, 'Offers sent')
+
+        return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=['post'])
+    def select_offer(self, request, pk=None):
+        obj = self.get_object()
+        offer_id = request.data.get('offer_id')
+
+        if not offer_id:
+            return Response({'detail': 'offer_id مطلوب'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            offer = obj.offers.get(id=offer_id)
+        except TransportOffer.DoesNotExist:
+            return Response({'detail': 'العرض غير موجود'}, status=status.HTTP_404_NOT_FOUND)
+
+        obj.selected_carrier = offer.carrier_company
+        obj.agreed_price = offer.price
+        obj.status = 'CARRIER_SELECTED'
+        obj.save(update_fields=['selected_carrier', 'agreed_price', 'status', 'updated_at'])
+
+        obj.offers.exclude(id=offer.id).update(status='REJECTED')
+        offer.status = 'ACCEPTED'
+        offer.save(update_fields=['status', 'updated_at'])
+
+        audit(request.user, 'UPDATE', 'TransportRequest', obj.id, 'Carrier offer selected')
+
+        return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=['post'])
+    def mark_paid(self, request, pk=None):
+        obj = self.get_object()
+
+        amount = request.data.get('amount') or obj.agreed_price
+
+        if not amount:
+            return Response({'detail': 'amount مطلوب أو يجب وجود سعر متفق'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payment, _ = TransportPayment.objects.get_or_create(
+            request=obj,
+            defaults={
+                'amount': amount,
+                'method': request.data.get('method', 'manual'),
+                'transaction_ref': request.data.get('transaction_ref', ''),
+            }
+        )
+
+        payment.amount = amount
+        payment.method = request.data.get('method', payment.method or 'manual')
+        payment.transaction_ref = request.data.get('transaction_ref', payment.transaction_ref or '')
+        payment.status = 'PAID'
+        payment.paid_at = timezone.now()
+        payment.save()
+
+        obj.status = 'PAID'
+        obj.save(update_fields=['status', 'updated_at'])
+
+        audit(request.user, 'PAYMENT', 'TransportRequest', obj.id, 'Payment marked as paid')
+
+        return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=['post'])
+    def assign_driver(self, request, pk=None):
+        obj = self.get_object()
+
+        driver_id = request.data.get('driver_id')
+        truck_id = request.data.get('truck_id')
+
+        if not driver_id or not truck_id:
+            return Response({'detail': 'driver_id و truck_id مطلوبان'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            driver = Driver.objects.get(id=driver_id)
+            truck = Truck.objects.get(id=truck_id)
+        except (Driver.DoesNotExist, Truck.DoesNotExist):
+            return Response({'detail': 'السائق أو الشاحنة غير موجود'}, status=status.HTTP_404_NOT_FOUND)
+
+        obj.assigned_driver = driver
+        obj.assigned_truck = truck
+        obj.status = 'DRIVER_ASSIGNED'
+        obj.save(update_fields=['assigned_driver', 'assigned_truck', 'status', 'updated_at'])
+
+        audit(request.user, 'UPDATE', 'TransportRequest', obj.id, 'Driver and truck assigned')
+
+        return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=['post'])
+    def book_slot(self, request, pk=None):
+        obj = self.get_object()
+        slot_id = request.data.get('slot_id')
+
+        if not slot_id:
+            return Response({'detail': 'slot_id مطلوب'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            slot = BookingSlot.objects.get(id=slot_id)
+        except BookingSlot.DoesNotExist:
+            return Response({'detail': 'الموعد غير موجود'}, status=status.HTTP_404_NOT_FOUND)
+
+        if slot.is_closed:
+            return Response({'detail': 'الموعد مغلق أو ممتلئ'}, status=status.HTTP_400_BAD_REQUEST)
+
+        obj.slot = slot
+        obj.status = 'PORT_SLOT_BOOKED'
+        obj.save(update_fields=['slot', 'status', 'updated_at'])
+
+        audit(request.user, 'UPDATE', 'TransportRequest', obj.id, 'Port slot booked')
+
+        return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=['post'])
+    def issue_qr(self, request, pk=None):
+        obj = self.get_object()
+
+        if not obj.selected_carrier:
+            return Response({'detail': 'يجب اختيار شركة النقل أولاً'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not obj.assigned_driver or not obj.assigned_truck:
+            return Response({'detail': 'يجب تخصيص السائق والشاحنة أولاً'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not obj.slot:
+            return Response({'detail': 'يجب حجز موعد الميناء أولاً'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not obj.linked_trip:
+            container, _ = Container.objects.get_or_create(
+                container_no=obj.container_no,
+                defaults={
+                    'destination': obj.destination,
+                    'customs_status': 'released',
+                }
+            )
+
+            if container.destination != obj.destination:
+                container.destination = obj.destination
+                container.save(update_fields=['destination', 'updated_at'])
+
+            trip = Trip.objects.create(
+                broker=obj.requester,
+                carrier_company=obj.selected_carrier,
+                truck=obj.assigned_truck,
+                driver=obj.assigned_driver,
+                container=container,
+                slot=obj.slot,
+                destination=obj.destination,
+                status='BOOKED',
+                notes=f'Transport request #{obj.id}',
+            )
+
+            obj.linked_trip = trip
+
+        obj.status = 'QR_ISSUED'
+        obj.save(update_fields=['linked_trip', 'status', 'updated_at'])
+
+        audit(request.user, 'UPDATE', 'TransportRequest', obj.id, 'QR issued')
+
+        return Response(self.get_serializer(obj).data)
+
+
+class TransportOfferViewSet(viewsets.ModelViewSet):
+    serializer_class = TransportOfferSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = TransportOffer.objects.select_related('request', 'carrier_company').all()
+        request_id = self.request.query_params.get('request_id')
+
+        if request_id:
+            qs = qs.filter(request_id=request_id)
+
+        return qs
+
+
+class TransportPaymentViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = TransportPaymentSerializer
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer

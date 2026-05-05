@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     UserProfile, Company, Driver, Truck, Container,
-    BookingSlot, Trip, ScanPoint, ScanEvent, Notification, AuditLog
+    BookingSlot, Trip, ScanPoint, ScanEvent, Notification, AuditLog,TransportRequest, TransportOffer, TransportPayment
 )
 
 @admin.register(UserProfile)
@@ -73,3 +73,60 @@ class NotificationAdmin(admin.ModelAdmin):
 class AuditLogAdmin(admin.ModelAdmin):
     list_display = ('action', 'model_name', 'object_id', 'user', 'created_at')
     list_filter = ('action', 'model_name')
+
+@admin.register(TransportRequest)
+class TransportRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'container_no',
+        'bl_no',
+        'requester',
+        'selected_carrier',
+        'status',
+        'agreed_price',
+        'created_at',
+    )
+    list_filter = ('status', 'arrival_port', 'created_at')
+    search_fields = (
+        'container_no',
+        'bl_no',
+        'vessel_name',
+        'destination',
+        'requester__username',
+        'selected_carrier__name',
+    )
+
+
+@admin.register(TransportOffer)
+class TransportOfferAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'request',
+        'carrier_company',
+        'price',
+        'status',
+        'estimated_pickup_at',
+    )
+    list_filter = ('status', 'carrier_company')
+    search_fields = (
+        'request__container_no',
+        'carrier_company__name',
+    )
+
+
+@admin.register(TransportPayment)
+class TransportPaymentAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'request',
+        'amount',
+        'method',
+        'status',
+        'transaction_ref',
+        'paid_at',
+    )
+    list_filter = ('status', 'method')
+    search_fields = (
+        'request__container_no',
+        'transaction_ref',
+    )
