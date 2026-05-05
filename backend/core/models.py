@@ -197,15 +197,17 @@ class Trip(TimeStampedModel):
         return self.qr_image.url if self.qr_image else ''
 
 class TransportRequest(TimeStampedModel):
-    ('VERIFIED', 'تم التحقق'),    STATUS_CHOICES = [
-        ('OFFERS_SENT', 'تم إرسال العروض'),
-        ('CARRIER_SELECTED', 'تم اختيار شركة النقل'),
-        ('PAID', 'مدفوع'),
-        ('DRIVER_ASSIGNED', 'تم تخصيص السائق'),
-        ('PORT_SLOT_BOOKED', 'تم حجز موعد الميناء'),
-        ('QR_ISSUED', 'تم إصدار QR'),
-        ('COMPLETED', 'مكتمل'),
-        ('CANCELLED', 'ملغى'),
+    STATUS_CHOICES = [
+        ('DRAFT', '?????'),
+        ('VERIFIED', '?? ??????'),
+        ('OFFERS_SENT', '?? ????? ??????'),
+        ('CARRIER_SELECTED', '?? ?????? ???? ?????'),
+        ('PAID', '?????'),
+        ('DRIVER_ASSIGNED', '?? ????? ??????'),
+        ('PORT_SLOT_BOOKED', '?? ??? ???? ???????'),
+        ('QR_ISSUED', '?? ????? QR'),
+        ('COMPLETED', '?????'),
+        ('CANCELLED', '????'),
     ]
 
     requester = models.ForeignKey(
@@ -291,9 +293,9 @@ class TransportRequest(TimeStampedModel):
 
 class TransportOffer(TimeStampedModel):
     STATUS_CHOICES = [
-        ('PENDING', 'معلق'),
-        ('ACCEPTED', 'مقبول'),
-        ('REJECTED', 'مرفوض'),
+        ('PENDING', '????'),
+        ('ACCEPTED', '?????'),
+        ('REJECTED', '?????'),
     ]
 
     request = models.ForeignKey(
@@ -323,10 +325,10 @@ class TransportOffer(TimeStampedModel):
 
 class TransportPayment(TimeStampedModel):
     STATUS_CHOICES = [
-        ('PENDING', 'معلق'),
-        ('PAID', 'مدفوع'),
-        ('FAILED', 'فشل'),
-        ('REFUNDED', 'مسترجع'),
+        ('PENDING', '????'),
+        ('PAID', '?????'),
+        ('FAILED', '???'),
+        ('REFUNDED', '??????'),
     ]
 
     request = models.OneToOneField(
@@ -343,7 +345,6 @@ class TransportPayment(TimeStampedModel):
 
     def __str__(self):
         return f"{self.request.container_no} - {self.status}"
-        ('DRAFT', 'مسودة'),
 
 
 class ScanPoint(TimeStampedModel):

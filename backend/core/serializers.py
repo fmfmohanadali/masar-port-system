@@ -101,7 +101,12 @@ class QuickCreateTripSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True)
 
 class TransportOfferSerializer(serializers.ModelSerializer):
-    carrier Meta:    carrier_company_name = serializers.CharField(source='carrier_company.name', read_only=True)
+    carrier_company_name = serializers.CharField(
+        source='carrier_company.name',
+        read_only=True
+    )
+
+    class Meta:
         model = TransportOffer
         fields = '__all__'
 
