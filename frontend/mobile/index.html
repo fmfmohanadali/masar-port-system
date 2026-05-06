@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0f3d69" />
   <meta name="description" content="واجهة تشغيل نهائية لنظام مسار" />
   <title>مسار | تطبيق الجوال</title>
+  <link rel="manifest" href="manifest.json" />
   <style>
     :root {
       --primary:#0f3d69; --primary2:#14548f; --bg:#eef3f8; --card:#fff; --muted:#6e8197;
@@ -37,16 +38,16 @@
     .center{text-align:center}
     video{width:100%;max-height:280px;border-radius:14px;background:#000}
     img.qr-preview,
-    canvas.qr-preview{
-      max-width:180px;
-      width:180px;
-      height:180px;
-      border:1px solid #dfe8f1;
-      border-radius:12px;
-      padding:8px;
-      background:white;
-      display:block;
-    }
+canvas.qr-preview{
+  max-width:180px;
+  width:180px;
+  height:180px;
+  border:1px solid #dfe8f1;
+  border-radius:12px;
+  padding:8px;
+  background:white;
+  display:block;
+}
     code{word-break:break-all}
     @media (max-width:740px){.tabs{grid-template-columns:repeat(2,1fr)}}
   </style>
@@ -62,22 +63,16 @@
       <h2>تسجيل الدخول</h2>
       <div class="row">
         <div>
-          <label>عنوان الـ API</label>
-          <input id="apiBase" placeholder="https://masar-backend-oxnm.onrender.com/api" />
-        </div>
-        <div>
           <label>اسم المستخدم</label>
-          <input id="username" placeholder="broker1" />
+          <input id="username" placeholder="اسم المستخدم" />
         </div>
         <div>
           <label>كلمة المرور</label>
-          <input id="password" type="password" placeholder="Admin@12345" />
+          <input id="password" type="password" placeholder="كلمة المرور" />
         </div>
       </div>
       <div class="row" style="margin-top:12px">
-        <button onclick="saveSettings()">حفظ الإعدادات</button>
         <button class="ok" onclick="login()">دخول</button>
-        <button class="secondary" onclick="loadDemoCredentials()">بيانات تجريبية</button>
       </div>
       <p id="loginStatus" class="muted">غير مسجل الدخول</p>
     </div>
@@ -205,24 +200,33 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
   <script>
     const K = { settings:'masar_settings_v2', token:'masar_token_v2', queue:'masar_queue_v2', user:'masar_user_v2' };
     let scannerStream = null;
     let scannerInterval = null;
 
-    function settings(){
-      return JSON.parse(localStorage.getItem(K.settings) || '{"apiBase":"https://masar-backend-oxnm.onrender.com/api","username":"","password":""}');
-    }
-    
-    function saveSettings(){
-      const payload = { apiBase: val('apiBase'), username: val('username'), password: val('password') };
-      localStorage.setItem(K.settings, JSON.stringify(payload));
-      setLoginStatus('تم حفظ الإعدادات');
-    }
-    
-    function loadSettings(){ const s=settings(); setVal('apiBase',s.apiBase||''); setVal('username',s.username||''); setVal('password',s.password||''); }
+function settings() {
+  return { apiBase: DEFAULT_API_BASE };
+}
+
+function saveSettings() {
+  const payload = {
+    apiBase: val('apiBase'),
+    username: val('username')
+  };
+
+  localStorage.setItem(K.settings, JSON.stringify(payload));
+  setLoginStatus('تم حفظ الإعدادات بدون حفظ كلمة المرور');
+}
+
+function loadSettings() {
+  const s = settings();
+  setVal('apiBase', s.apiBase || '');
+  setVal('username', s.username || '');
+  setVal('password', '');
+}
     function token(){ return localStorage.getItem(K.token) || ''; }
     function setToken(t){ localStorage.setItem(K.token, t); }
     function currentUser(){ return JSON.parse(localStorage.getItem(K.user) || 'null'); }
@@ -243,18 +247,34 @@
       return data;
     }
 
-    async function login(){
-      saveSettings();
-      try {
-        const data = await request('/auth/login/', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ username: val('username'), password: val('password') })});
-        setToken(data.token); setCurrentUser(data.user);
-        document.getElementById('loginCard').classList.add('hidden');
-        document.getElementById('appShell').classList.remove('hidden');
-        document.getElementById('whoami').textContent = `${data.user.username} - ${data.user.profile?.role || ''}`;
-        await loadScanPoints();
-        await refreshAll();
-      } catch(err){ setLoginStatus('فشل تسجيل الدخول: ' + err.message); }
-    }
+async function login() {
+
+  try {
+    const data = await request('/auth/login/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: val('username'),
+        password: val('password')
+      })
+    });
+
+    setToken(data.token);
+    setCurrentUser(data.user);
+    setVal('password', '');
+
+    document.getElementById('loginCard').classList.add('hidden');
+    document.getElementById('appShell').classList.remove('hidden');
+
+    document.getElementById('whoami').textContent =
+      `${data.user.username} - ${data.user.profile?.role || ''}`;
+
+    await loadScanPoints();
+    await refreshAll();
+  } catch (err) {
+    setLoginStatus('فشل تسجيل الدخول: ' + err.message);
+  }
+}
 
     async function logout(){
       try { if(token()) await request('/auth/logout/', {method:'POST', headers:authHeaders()}); } catch(_){}
@@ -272,7 +292,13 @@
       if(['CANCELLED'].includes(status)) return 'danger';
       return '';
     }
-
+function jsString(value) {
+  return String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
     function renderTripItem(t){
      return `
      <div class="item">
@@ -285,83 +311,84 @@
       <div class="small">الرحلة: <code>${t.trip_code}</code></div>
       ${t.qr_token ? `<div style="margin-top:8px"><canvas id="${tripQrCanvasId(t)}" class="qr-preview"></canvas></div>` : ""}
       <div class="row" style="margin-top:8px">
-        <button class="secondary" onclick="copyToken('${(t.qr_token || "").replace(/'/g, "&#39;")}')">نسخ التوكن</button>
+        <button class="secondary" onclick="copyToken('${jsString(t.qr_token)}')">نسخ التوكن</button>
         <button class="secondary" onclick="regenerateQr(${t.id})">تجديد QR</button>
         <button class="ok" onclick="markDelivered(${t.id})">تم التسليم</button>
       </div>
     </div>`;
-    }
-    
+}
     function tripQrCanvasId(t){
-      return `qr-${t.id || t.trip_code}`;
-    }
+  return `qr-${t.id || t.trip_code}`;
+}
 
-    function renderSingleQRCode(canvasId, token){
-      if (!window.QRCode || !token) return;
-      const canvas = document.getElementById(canvasId);
-      if (!canvas) return;
+function renderSingleQRCode(canvasId, token){
+  if (!window.QRCode || !token) return;
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
 
-      QRCode.toCanvas(
-        canvas,
-        token,
-        {
-          width: 180,
-          margin: 1,
-          color: {
-            dark: "#0f3d69",
-            light: "#ffffff"
-          }
-        },
-        function (error) {
-          if (error) console.error("QR render error:", error);
-        }
-      );
-    }
-
-    function renderTripQRCodes(trips){
-      if (!Array.isArray(trips)) return;
-      trips.forEach(t => {
-        if (t.qr_token) {
-          renderSingleQRCode(tripQrCanvasId(t), t.qr_token);
-        }
-      });
-    }
-
-    async function loadDashboard(){
-      const data = await request('/dashboard/summary/', {headers:authHeaders(false)});
-      document.getElementById('totalTrips').textContent = data.total_trips;
-      document.getElementById('waitingTrips').textContent = data.waiting_trips;
-      document.getElementById('insideTrips').textContent = data.inside_port;
-      document.getElementById('deliveredTrips').textContent = data.delivered;
-
-      const holder = document.getElementById('dashboardTrips');
-      holder.innerHTML = data.recent_trips.length
-        ? data.recent_trips.map(renderTripItem).join('')
-        : '<div class="item muted">لا توجد بيانات.</div>';
-
-      if (data.recent_trips.length) {
-        renderTripQRCodes(data.recent_trips);
+  QRCode.toCanvas(
+    canvas,
+    token,
+    {
+      width: 180,
+      margin: 1,
+      color: {
+        dark: "#0f3d69",
+        light: "#ffffff"
       }
+    },
+    function (error) {
+      if (error) console.error("QR render error:", error);
     }
+  );
+}
 
-    async function loadTrips(){
-      const s = val('tripSearch');
-      const st = val('tripStatusFilter');
-      const params = new URLSearchParams();
-      if (s) params.set('search', s);
-      if (st) params.set('status', st);
+function renderTripQRCodes(trips) {
+  if (!Array.isArray(trips)) return;
 
-      const data = await request('/trips/?' + params.toString(), {headers:authHeaders(false)});
-      const results = data.results || data;
-
-      document.getElementById('tripList').innerHTML = results.length
-        ? results.map(renderTripItem).join('')
-        : '<div class="item muted">لا توجد رحلات مطابقة.</div>';
-
-      if (results.length) {
-        renderTripQRCodes(results);
-      }
+  trips.forEach((trip) => {
+    if (trip.qr_token) {
+      renderSingleQRCode(tripQrCanvasId(trip), trip.qr_token);
     }
+  });
+}
+    
+
+async function loadDashboard(){
+  const data = await request('/dashboard/summary/', {headers:authHeaders(false)});
+  document.getElementById('totalTrips').textContent = data.total_trips;
+  document.getElementById('waitingTrips').textContent = data.waiting_trips;
+  document.getElementById('insideTrips').textContent = data.inside_port;
+  document.getElementById('deliveredTrips').textContent = data.delivered;
+
+  const holder = document.getElementById('dashboardTrips');
+  holder.innerHTML = data.recent_trips.length
+    ? data.recent_trips.map(renderTripItem).join('')
+    : '<div class="item muted">لا توجد بيانات.</div>';
+
+  if (data.recent_trips.length) {
+    renderTripQRCodes(data.recent_trips);
+  }
+}
+
+async function loadTrips(){
+  const s = val('tripSearch');
+  const st = val('tripStatusFilter');
+  const params = new URLSearchParams();
+  if (s) params.set('search', s);
+  if (st) params.set('status', st);
+
+  const data = await request('/trips/?' + params.toString(), {headers:authHeaders(false)});
+  const results = data.results || data;
+
+  document.getElementById('tripList').innerHTML = results.length
+    ? results.map(renderTripItem).join('')
+    : '<div class="item muted">لا توجد رحلات مطابقة.</div>';
+
+  if (results.length) {
+    renderTripQRCodes(results);
+  }
+}
 
     async function loadNotifications(){
       const data = await request('/notifications/', {headers:authHeaders(false)});
@@ -410,35 +437,35 @@
       document.getElementById('createResult').innerHTML = '<span class="pill warn">تم حفظ الطلب ضمن الأوفلاين</span>';
     }
 
-    async function submitCreateTrip(){
-      const payload = createTripPayload();
-      try{
-        const data = await request('/trips/quick_create/', {
-          method:'POST',
-          headers:authHeaders(),
-          body:JSON.stringify(payload)
-        });
+async function submitCreateTrip(){
+  const payload = createTripPayload();
+  try{
+    const data = await request('/trips/quick_create/', {
+      method:'POST',
+      headers:authHeaders(),
+      body:JSON.stringify(payload)
+    });
 
-        document.getElementById('createResult').innerHTML = `
-          <div class="item">
-            <div><strong>تم إنشاء الرحلة بنجاح</strong></div>
-            <div class="small"><code>${data.trip_code}</code></div>
-            ${data.qr_token ? `<div style="margin-top:8px"><canvas id="create-qr-canvas" class="qr-preview"></canvas></div>` : ''}
-          </div>
-        `;
+    document.getElementById('createResult').innerHTML = `
+      <div class="item">
+        <div><strong>تم إنشاء الرحلة بنجاح</strong></div>
+        <div class="small"><code>${data.trip_code}</code></div>
+        ${data.qr_token ? `<div style="margin-top:8px"><canvas id="create-qr-canvas" class="qr-preview"></canvas></div>` : ''}
+      </div>
+    `;
 
-        if (data.qr_token) {
-          renderSingleQRCode('create-qr-canvas', data.qr_token);
-        }
-
-        await refreshAll();
-      }catch(err){
-        enqueue({type:'create-trip', payload});
-        document.getElementById('createResult').innerHTML = `
-          <span class="pill danger">فشل الإرسال، تم حفظه أوفلاين: ${err.message}</span>
-        `;
-      }
+    if (data.qr_token) {
+      renderSingleQRCode('create-qr-canvas', data.qr_token);
     }
+
+    await refreshAll();
+  }catch(err){
+    enqueue({type:'create-trip', payload});
+    document.getElementById('createResult').innerHTML = `
+      <span class="pill danger">فشل الإرسال، تم حفظه أوفلاين: ${err.message}</span>
+    `;
+  }
+}
 
     async function regenerateQr(id){
       const data = await request(`/trips/${id}/generate_qr/`, {method:'POST', headers:authHeaders()});
@@ -505,7 +532,6 @@
         </div>
       `).join('') : '<div class="item muted">الطابور فارغ.</div>';
     }
-    
     function removeQueue(idx){ const items=queue(); items.splice(idx,1); setQueue(items); renderQueue(); }
 
     async function refreshAll(){ await Promise.all([loadDashboard(), loadTrips(), loadNotifications()]); }
@@ -517,39 +543,104 @@
       }));
     }
 
-    async function startScanner(){
-      const support = 'BarcodeDetector' in window;
-      document.getElementById('barcodeSupport').textContent = support ? 'المتصفح يدعم BarcodeDetector - يمكن المسح بالكاميرا.' : 'المتصفح لا يدعم BarcodeDetector، استخدم اللصق اليدوي أو Chrome/Edge على Android.';
-      if(!navigator.mediaDevices?.getUserMedia){ alert('الكاميرا غير متاحة في هذا المتصفح'); return; }
-      try{
-        scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        const video = document.getElementById('video');
-        video.srcObject = scannerStream;
-        document.getElementById('videoWrap').classList.remove('hidden');
-        if(support){
-          const detector = new BarcodeDetector({ formats: ['qr_code'] });
-          scannerInterval = setInterval(async ()=>{
-            try{
-              const barcodes = await detector.detect(video);
-              if(barcodes.length){
-                document.getElementById('qrTokenInput').value = barcodes[0].rawValue || '';
-                stopScanner();
-                alert('تم التقاط الرمز بنجاح');
-              }
-            }catch(_){ }
-          }, 700);
-        }
-      }catch(err){ alert('تعذر فتح الكاميرا: ' + err.message); }
+async function startScanner() {
+  const support = 'BarcodeDetector' in window;
+  document.getElementById('barcodeSupport').textContent = support
+    ? 'المتصفح يدعم BarcodeDetector - يمكن المسح بالكاميرا.'
+    : 'المتصفح لا يدعم BarcodeDetector، استخدم اللصق اليدوي أو Chrome/Edge على Android.';
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    alert('الكاميرا غير متاحة في هذا المتصفح');
+    return;
+  }
+
+  try {
+    // دقة أعلى تساعد في التقاط QR
+    const constraints = {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    };
+
+    scannerStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    const video = document.getElementById('video');
+    video.srcObject = scannerStream;
+
+    document.getElementById('videoWrap').classList.remove('hidden');
+
+    // انتظر الفيديو حتى يصبح جاهز
+    await video.play();
+
+    const track = scannerStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : null;
+
+    // محاولة تقليل Ultra-Wide عبر zoom إن كان مدعوم
+    if (caps && caps.zoom) {
+      const minZoom = caps.zoom.min ?? 1;
+      const maxZoom = caps.zoom.max ?? 1;
+      const targetZoom = Math.min(Math.max(2, minZoom), maxZoom);
+      if (targetZoom > 1) {
+        try {
+          await track.applyConstraints({ advanced: [{ zoom: targetZoom }] });
+        } catch (_) {}
+      }
     }
 
-    function stopScanner(){
-      if(scannerInterval){ clearInterval(scannerInterval); scannerInterval = null; }
-      if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream = null; }
-      document.getElementById('videoWrap').classList.add('hidden');
+    // محاولة تفعيل auto focus المستمر إن كان مدعوم
+    if (caps && caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+      try {
+        await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      } catch (_) {}
     }
+
+    if (!support) return;
+
+    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+
+    const scanLoop = async () => {
+      if (!scannerStream) return;
+
+      if (video.readyState >= 2) {
+        try {
+          const barcodes = await detector.detect(video);
+          if (barcodes && barcodes.length) {
+            document.getElementById('qrTokenInput').value = barcodes[0].rawValue || '';
+            stopScanner();
+            alert('تم التقاط الرمز بنجاح');
+            return;
+          }
+        } catch (_) {}
+      }
+
+      scannerInterval = requestAnimationFrame(scanLoop);
+    };
+
+    scannerInterval = requestAnimationFrame(scanLoop);
+  } catch (err) {
+    alert('تعذر فتح الكاميرا: ' + err.message);
+  }
+}
+
+function stopScanner() {
+  if (scannerInterval) {
+    cancelAnimationFrame(scannerInterval);
+    scannerInterval = null;
+  }
+  if (scannerStream) {
+    scannerStream.getTracks().forEach((t) => t.stop());
+    scannerStream = null;
+  }
+  document.getElementById('videoWrap').classList.add('hidden');
+}
 
     window.addEventListener('load', async ()=>{
-      initTabs(); loadSettings(); renderQueue(); loadDemoCredentials();
+      initTabs();
+      renderQueue();
+      if('serviceWorker' in navigator){ navigator.serviceWorker.register('./service-worker.js').catch(()=>{}); }
       const user = currentUser();
       if(token() && user){
         document.getElementById('loginCard').classList.add('hidden');
