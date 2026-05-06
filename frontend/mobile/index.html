@@ -36,7 +36,11 @@
     .hint{background:#f4f8fd;border-right:4px solid var(--primary);padding:10px 12px;border-radius:12px;margin-top:10px}
     .hidden{display:none!important}
     .center{text-align:center}
-    video{width:100%;max-height:280px;border-radius:14px;background:#000}
+    video {
+    width: 100%;
+    max-height: 360px;
+    border-radius: 14px;
+    background
     img.qr-preview,
 canvas.qr-preview{
   max-width:180px;
@@ -185,6 +189,7 @@ canvas.qr-preview{
           <div id="barcodeSupport" class="muted small" style="margin-top:8px"></div>
           <div id="videoWrap" class="hidden" style="margin-top:12px">
             <video id="video" autoplay playsinline muted></video>
+            <canvas id="scanCanvas" class="hidden"></canvas>
           </div>
         </div>
         <div class="card">
@@ -201,6 +206,7 @@ canvas.qr-preview{
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script
 
   <script>
 const K = {
@@ -571,11 +577,55 @@ async function submitCreateTrip(){
       }));
     }
 
+async function getPreferredBackCameraId() {
+  if (!navigator.mediaDevices?.enumerateDevices) return null;
+
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cameras = devices.filter((device) => device.kind === 'videoinput');
+
+    if (!cameras.length) return null;
+
+    const backCameras = cameras.filter((camera) => {
+      const label = (camera.label || '').toLowerCase();
+
+      return (
+        label.includes('back') ||
+        label.includes('rear') ||
+        label.includes('environment') ||
+        label.includes('خلف')
+      );
+    });
+
+    const normalBackCamera =
+      backCameras.find((camera) => {
+        const label = (camera.label || '').toLowerCase();
+
+        return (
+          !label.includes('wide') &&
+          !label.includes('ultra') &&
+          !label.includes('macro') &&
+          !label.includes('depth')
+        );
+      }) ||
+      backCameras[0] ||
+      cameras[0];
+
+    return normalBackCamera?.deviceId || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function startScanner() {
-  const support = 'BarcodeDetector' in window;
-  document.getElementById('barcodeSupport').textContent = support
-    ? 'المتصفح يدعم BarcodeDetector - يمكن المسح بالكاميرا.'
-    : 'المتصفح لا يدعم BarcodeDetector، استخدم اللصق اليدوي أو Chrome/Edge على Android.';
+  const nativeSupport = 'BarcodeDetector' in window;
+  const jsQrSupport = typeof window.jsQR === 'function';
+
+  document.getElementById('barcodeSupport').textContent = nativeSupport
+    ? 'جاري تشغيل الكاميرا. سيتم استخدام BarcodeDetector مع fallback عبر jsQR.'
+    : jsQrSupport
+    ? 'جاري تشغيل الكاميرا. سيتم استخدام jsQR للقراءة.'
+    : 'لا توجد مكتبة QR متاحة. استخدم اللصق اليدوي.';
 
   if (!navigator.mediaDevices?.getUserMedia) {
     alert('الكاميرا غير متاحة في هذا المتصفح');
@@ -583,65 +633,132 @@ async function startScanner() {
   }
 
   try {
-    // دقة أعلى تساعد في التقاط QR
-    const constraints = {
+    stopScanner();
+
+    // فتح أولي حتى تظهر أسماء الكاميرات في Android بعد الصلاحية
+    const firstStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: 'environment' },
         width: { ideal: 1280 },
         height: { ideal: 720 }
       },
       audio: false
+    });
+
+    firstStream.getTracks().forEach((track) => track.stop());
+
+    const preferredDeviceId = await getPreferredBackCameraId();
+
+    const constraints = {
+      video: preferredDeviceId
+        ? {
+            deviceId: { exact: preferredDeviceId },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        : {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+      audio: false
     };
 
     scannerStream = await navigator.mediaDevices.getUserMedia(constraints);
 
     const video = document.getElementById('video');
-    video.srcObject = scannerStream;
+    const canvas = document.getElementById('scanCanvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
+    video.srcObject = scannerStream;
     document.getElementById('videoWrap').classList.remove('hidden');
 
-    // انتظر الفيديو حتى يصبح جاهز
     await video.play();
 
     const track = scannerStream.getVideoTracks()[0];
     const caps = track.getCapabilities ? track.getCapabilities() : null;
 
-    // محاولة تقليل Ultra-Wide عبر zoom إن كان مدعوم
+    // تقليل wide عبر zoom إن كان مدعومًا
     if (caps && caps.zoom) {
       const minZoom = caps.zoom.min ?? 1;
       const maxZoom = caps.zoom.max ?? 1;
       const targetZoom = Math.min(Math.max(2, minZoom), maxZoom);
+
       if (targetZoom > 1) {
         try {
-          await track.applyConstraints({ advanced: [{ zoom: targetZoom }] });
+          await track.applyConstraints({
+            advanced: [{ zoom: targetZoom }]
+          });
         } catch (_) {}
       }
     }
 
-    // محاولة تفعيل auto focus المستمر إن كان مدعوم
-    if (caps && caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+    // محاولة تفعيل التركيز المستمر
+    if (
+      caps &&
+      caps.focusMode &&
+      Array.isArray(caps.focusMode) &&
+      caps.focusMode.includes('continuous')
+    ) {
       try {
-        await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+        await track.applyConstraints({
+          advanced: [{ focusMode: 'continuous' }]
+        });
       } catch (_) {}
     }
 
-    if (!support) return;
+    let detector = null;
 
-    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+    if (nativeSupport) {
+      try {
+        detector = new BarcodeDetector({ formats: ['qr_code'] });
+      } catch (_) {
+        detector = null;
+      }
+    }
 
     const scanLoop = async () => {
       if (!scannerStream) return;
 
-      if (video.readyState >= 2) {
-        try {
-          const barcodes = await detector.detect(video);
-          if (barcodes && barcodes.length) {
-            document.getElementById('qrTokenInput').value = barcodes[0].rawValue || '';
-            stopScanner();
-            alert('تم التقاط الرمز بنجاح');
-            return;
-          }
-        } catch (_) {}
+      if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
+        // 1) جرّب BarcodeDetector أولًا
+        if (detector) {
+          try {
+            const barcodes = await detector.detect(video);
+
+            if (barcodes && barcodes.length) {
+              const value = barcodes[0].rawValue || '';
+              if (value) {
+                document.getElementById('qrTokenInput').value = value;
+                stopScanner();
+                alert('تم التقاط الرمز بنجاح');
+                return;
+              }
+            }
+          } catch (_) {}
+        }
+
+        // 2) fallback باستخدام jsQR من canvas
+        if (jsQrSupport) {
+          try {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert'
+            });
+
+            if (code && code.data) {
+              document.getElementById('qrTokenInput').value = code.data;
+              stopScanner();
+              alert('تم التقاط الرمز بنجاح');
+              return;
+            }
+          } catch (_) {}
+        }
       }
 
       scannerInterval = requestAnimationFrame(scanLoop);
@@ -658,12 +775,13 @@ function stopScanner() {
     cancelAnimationFrame(scannerInterval);
     scannerInterval = null;
   }
+
   if (scannerStream) {
-    scannerStream.getTracks().forEach((t) => t.stop());
+    scannerStream.getTracks().forEach((track) => track.stop());
     scannerStream = null;
   }
-  document.getElementById('videoWrap').classList.add('hidden');
-}
+
+  document.getElementById('videoWrap').classList.add
 
     window.addEventListener('load', async ()=>{
       initTabs();
