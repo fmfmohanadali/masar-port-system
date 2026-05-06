@@ -4,6 +4,7 @@
   "lang": "ar",
   "dir": "rtl",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#eef3f8",
   "theme_color": "#0f3d69",
