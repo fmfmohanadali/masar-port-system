@@ -44,16 +44,16 @@
   object-fit: cover;
 }
 
-    img.qr-preview,
-canvas.qr-preview{
-  max-width:180px;
-  width:180px;
-  height:180px;
-  border:1px solid #dfe8f1;
-  border-radius:12px;
-  padding:8px;
-  background:white;
-  display:block;
+img.qr-preview,
+canvas.qr-preview {
+  max-width: 280px;
+  width: 280px;
+  height: 280px;
+  border: 1px solid #dfe8f1;
+  border-radius: 12px;
+  padding: 10px;
+  background: white;
+  display: block;
 }
     code{word-break:break-all}
     @media (max-width:740px){.tabs{grid-template-columns:repeat(2,1fr)}}
@@ -355,8 +355,9 @@ function jsString(value) {
   return `qr-${t.id || t.trip_code}`;
 }
 
-function renderSingleQRCode(canvasId, token){
+function renderSingleQRCode(canvasId, token) {
   if (!window.QRCode || !token) return;
+
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
@@ -364,15 +365,15 @@ function renderSingleQRCode(canvasId, token){
     canvas,
     token,
     {
-      width: 180,
-      margin: 1,
+      width: 280,
+      margin: 2,
       color: {
-        dark: "#0f3d69",
-        light: "#ffffff"
+        dark: '#000000',
+        light: '#ffffff'
       }
     },
     function (error) {
-      if (error) console.error("QR render error:", error);
+      if (error) console.error('QR render error:', error);
     }
   );
 }
@@ -622,9 +623,9 @@ async function startScanner() {
   const jsQrSupport = typeof window.jsQR === 'function';
 
   document.getElementById('barcodeSupport').textContent = nativeSupport
-    ? 'جاري تشغيل الكاميرا. سيتم استخدام BarcodeDetector مع fallback عبر jsQR.'
+    ? 'جاري تشغيل الكاميرا. حاول وضع QR في منتصف الصورة وبحجم كبير.'
     : jsQrSupport
-    ? 'جاري تشغيل الكاميرا. سيتم استخدام jsQR للقراءة.'
+    ? 'جاري تشغيل الكاميرا باستخدام jsQR. حاول تقريب QR وجعله واضحًا.'
     : 'لا توجد مكتبة QR متاحة. استخدم اللصق اليدوي.';
 
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -635,12 +636,11 @@ async function startScanner() {
   try {
     stopScanner();
 
-    // فتح أولي حتى تظهر أسماء الكاميرات في Android بعد الصلاحية
     const firstStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
       },
       audio: false
     });
@@ -653,13 +653,13 @@ async function startScanner() {
       video: preferredDeviceId
         ? {
             deviceId: { exact: preferredDeviceId },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
           }
         : {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
           },
       audio: false
     };
@@ -678,7 +678,6 @@ async function startScanner() {
     const track = scannerStream.getVideoTracks()[0];
     const caps = track.getCapabilities ? track.getCapabilities() : null;
 
-    // تقليل wide عبر zoom إن كان مدعومًا
     if (caps && caps.zoom) {
       const minZoom = caps.zoom.min ?? 1;
       const maxZoom = caps.zoom.max ?? 1;
@@ -693,7 +692,6 @@ async function startScanner() {
       }
     }
 
-    // محاولة تفعيل التركيز المستمر
     if (
       caps &&
       caps.focusMode &&
@@ -717,17 +715,26 @@ async function startScanner() {
       }
     }
 
+    let frameCount = 0;
+
     const scanLoop = async () => {
       if (!scannerStream) return;
 
+      frameCount += 1;
+
+      if (frameCount % 30 === 0) {
+        document.getElementById('barcodeSupport').textContent =
+          'جاري البحث عن QR... ضع الرمز في المنتصف وقرّب الكاميرا قليلًا.';
+      }
+
       if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
-        // 1) جرّب BarcodeDetector أولًا
         if (detector) {
           try {
             const barcodes = await detector.detect(video);
 
             if (barcodes && barcodes.length) {
               const value = barcodes[0].rawValue || '';
+
               if (value) {
                 document.getElementById('qrTokenInput').value = value;
                 stopScanner();
@@ -738,18 +745,24 @@ async function startScanner() {
           } catch (_) {}
         }
 
-        // 2) fallback باستخدام jsQR من canvas
         if (jsQrSupport) {
           try {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
+            ctx.imageSmoothingEnabled = false;
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: 'dontInvert'
-            });
+
+            const code = jsQR(
+              imageData.data,
+              imageData.width,
+              imageData.height,
+              {
+                inversionAttempts: 'attemptBoth'
+              }
+            );
 
             if (code && code.data) {
               document.getElementById('qrTokenInput').value = code.data;
