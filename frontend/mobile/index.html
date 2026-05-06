@@ -203,43 +203,66 @@ canvas.qr-preview{
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
   <script>
-    const K = { settings:'masar_settings_v2', token:'masar_token_v2', queue:'masar_queue_v2', user:'masar_user_v2' };
-    const DEFAULT_API_BASE = 'https://masar-backend-oxnm.onrender.com/api';
+const K = {
+  token: 'masar_token_v2',
+  queue: 'masar_queue_v2',
+  user: 'masar_user_v2'
+};
 
-     let scannerStream = null;
-     let scannerInterval = null;
+const DEFAULT_API_BASE = 'https://masar-backend-oxnm.onrender.com/api';
+
+let scannerStream = null;
+let scannerInterval = null;
 
 function settings() {
   return { apiBase: DEFAULT_API_BASE };
 }
 
-function saveSettings() {
-  const payload = {
-    apiBase: val('apiBase'),
-    username: val('username')
-  };
-
-  localStorage.setItem(K.settings, JSON.stringify(payload));
-  setLoginStatus('تم حفظ الإعدادات بدون حفظ كلمة المرور');
+function token() {
+  return localStorage.getItem(K.token) || '';
 }
 
-function loadSettings() {
-  const s = settings();
-  setVal('apiBase', s.apiBase || '');
-  setVal('username', s.username || '');
-  setVal('password', '');
+function setToken(t) {
+  localStorage.setItem(K.token, t);
 }
-    function token(){ return localStorage.getItem(K.token) || ''; }
-    function setToken(t){ localStorage.setItem(K.token, t); }
-    function currentUser(){ return JSON.parse(localStorage.getItem(K.user) || 'null'); }
-    function setCurrentUser(u){ localStorage.setItem(K.user, JSON.stringify(u)); }
-    function queue(){ return JSON.parse(localStorage.getItem(K.queue) || '[]'); }
-    function setQueue(v){ localStorage.setItem(K.queue, JSON.stringify(v)); }
-    function val(id){ return document.getElementById(id).value.trim(); }
-    function setVal(id,v){ document.getElementById(id).value = v; }
-    function setLoginStatus(msg){ document.getElementById('loginStatus').textContent = msg; }
-    function authHeaders(json=true){ const h={ 'Authorization': 'Token ' + token() }; if(json) h['Content-Type']='application/json'; return h; }
-    function api(path){ return settings().apiBase.replace(/\/$/, '') + path; }
+
+function currentUser() {
+  return JSON.parse(localStorage.getItem(K.user) || 'null');
+}
+
+function setCurrentUser(u) {
+  localStorage.setItem(K.user, JSON.stringify(u));
+}
+
+function queue() {
+  return JSON.parse(localStorage.getItem(K.queue) || '[]');
+}
+
+function setQueue(v) {
+  localStorage.setItem(K.queue, JSON.stringify(v));
+}
+
+function val(id) {
+  return document.getElementById(id).value.trim();
+}
+
+function setVal(id, v) {
+  document.getElementById(id).value = v;
+}
+
+function setLoginStatus(msg) {
+  document.getElementById('loginStatus').textContent = msg;
+}
+
+function authHeaders(json = true) {
+  const h = { Authorization: 'Token ' + token() };
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+
+function api(path) {
+  return settings().apiBase.replace(/\/$/, '') + path;
+}
 
     async function request(path, options={}){
       const res = await fetch(api(path), options);
@@ -250,6 +273,7 @@ function loadSettings() {
     }
 
 async function login() {
+  setLoginStatus('جاري تسجيل الدخول...');
 
   try {
     const data = await request('/auth/login/', {
@@ -263,6 +287,8 @@ async function login() {
 
     setToken(data.token);
     setCurrentUser(data.user);
+
+    setVal('username', '');
     setVal('password', '');
 
     document.getElementById('loginCard').classList.add('hidden');

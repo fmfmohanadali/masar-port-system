@@ -1,4 +1,4 @@
-const CACHE_NAME = 'masar-mobile-v3';
+const CACHE_NAME = 'masar-mobile-v4';
 
 const DEFAULT_API_BASE = 'https://masar-backend-oxnm.onrender.com/api';
 
