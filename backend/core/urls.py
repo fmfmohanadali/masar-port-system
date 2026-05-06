@@ -3,12 +3,17 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from .views import (
-    LoginAPIView, LogoutAPIView, me, dashboard_summary, turnaround_report,
+    LoginAPIView, LogoutAPIView, me, dashboard_summary, turnaround_report, CompanyViewSet, DriverViewSet, TruckViewSet,
     TripViewSet, BookingSlotViewSet, ScanPointViewSet, ScanEventViewSet, NotificationViewSet,
     health,TransportRequestViewSet, TransportOfferViewSet, TransportPaymentViewSet
 )
 
 router = DefaultRouter()
+
+router.register('companies', CompanyViewSet, basename='company')
+
+router.register('drivers', DriverViewSet, basename='driver')
+router.register('trucks', TruckViewSet, basename='Truck')
 router.register('trips', TripViewSet, basename='trip')
 router.register('booking-slots', BookingSlotViewSet, basename='booking-slot')
 router.register('scan-points', ScanPointViewSet, basename='scan-point')

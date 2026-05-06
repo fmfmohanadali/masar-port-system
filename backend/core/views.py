@@ -231,6 +231,22 @@ class BookingSlotViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response(BookingSlotSerializer(qs, many=True).data)
 
+class CompanyViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Company.objects.all()
+    serializer_class = CompanySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class DriverViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Driver.objects.all()
+    serializer_class = DriverSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class TruckViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Truck.objects.select_related('owner_company').filter(is_active=True)
+    serializer_class = TruckSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 class ScanPointViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ScanPoint.objects.filter(is_active=True)
