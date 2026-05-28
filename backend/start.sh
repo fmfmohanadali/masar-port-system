@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-set -o errexit
 
 cd backend
 
-echo "⏳ Waiting for database..."
-for i in {1..20}; do
+for i in {1..30}; do
+    echo "⏳ Attempt $i/30: checking database..."
     if python manage.py showmigrations >/dev/null 2>&1; then
-        echo "✅ Database ready!"
+        echo "✅ Database is ready!"
         break
     fi
-    echo "   Attempt $i/20 failed, retrying in 3s..."
-    sleep 3
+    echo "   Database not ready, waiting 5s..."
+    sleep 5
 done
 
 echo "🔄 Running migrations..."
