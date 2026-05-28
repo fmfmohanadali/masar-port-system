@@ -2,11 +2,6 @@
 
 cd backend
 
-# Free Tier: انتظار 5 دقائق كاملة لقاعدة البيانات
-echo "⏳ Free Tier DB needs ~5min to wake up..."
-echo "⏳ Waiting 300 seconds (5 minutes)..."
-sleep 300
-
 echo "🔄 Running migrations..."
 python manage.py migrate --noinput
 
