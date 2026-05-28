@@ -2,23 +2,16 @@
 
 cd backend
 
-# انتظار أولي 3 دقائق — قاعدة البيانات Free Tier تحتاج وقت
-echo "⏳ Waiting 3 minutes for Free Tier database to wake up..."
-sleep 180
-
-for i in {1..30}; do
-    echo "⏳ Attempt $i/30: checking database..."
-    if python manage.py showmigrations >/dev/null 2>&1; then
-        echo "✅ Database is ready!"
-        sleep 15
-        break
-    fi
-    echo "   Database not ready, waiting 10s..."
-    sleep 10
-done
+# Free Tier: انتظار 5 دقائق كاملة لقاعدة البيانات
+echo "⏳ Free Tier DB needs ~5min to wake up..."
+echo "⏳ Waiting 300 seconds (5 minutes)..."
+sleep 300
 
 echo "🔄 Running migrations..."
 python manage.py migrate --noinput
+
+echo "📦 Seeding data..."
+python manage.py shell -c "from datetime import date,timedelta; from django.contrib.auth.models import User; from core.models import UserProfile, BookingSlot, ScanPoint; admin,_=User.objects.get_or_create(username='admin1', defaults={'email':'admin@example.com'}); admin.is_staff=True; admin.is_superuser=True; admin.set_password('Admin@12345'); admin.save(); admin_profile,_=UserProfile.objects.get_or_create(user=admin); admin_profile.role='admin'; admin_profile.save(); ops,_=User.objects.get_or_create(username='ops1', defaults={'email':'ops@example.com'}); ops.is_staff=True; ops.is_superuser=False; ops.set_password('Ops@12345'); ops.save(); ops_profile,_=UserProfile.objects.get_or_create(user=ops); ops_profile.role='ops'; ops_profile.save(); ScanPoint.objects.get_or_create(name='بوابة الدخول', point_type='ENTRY', defaults={'is_active':True}); ScanPoint.objects.get_or_create(name='رصيف التحميل 1', point_type='BERTH_1', defaults={'is_active':True}); ScanPoint.objects.get_or_create(name='رصيف التحميل 2', point_type='BERTH_2', defaults={'is_active':True}); ScanPoint.objects.get_or_create(name='الجمارك', point_type='CUSTOMS', defaults={'is_active':True}); ScanPoint.objects.get_or_create(name='بوابة الخروج', point_type='EXIT', defaults={'is_active':True}); WEEKDAY_RULES={0:{'hours':[8,9,10,11,12,13,14,15],'capacity':30},1:{'hours':[8,9,10,11,12,13,14,15],'capacity':30},2:{'hours':[8,9,10,11,12,13,14,15],'capacity':30},3:{'hours':[8,9,10,11,12],'capacity':20},4:{'hours':[],'capacity':0},5:{'hours':[9,10,11,12,13],'capacity':15},6:{'hours':[8,9,10,11,12,13,14],'capacity':25}}; today=date.today(); BookingSlot.objects.filter(date__gte=today).delete(); fields={f.name for f in BookingSlot._meta.fields}; [BookingSlot.objects.get_or_create(date=today+timedelta(days=d), hour=h, defaults={**({'capacity':cap} if 'capacity' in fields else {}), **({'max_capacity':cap} if 'max_capacity' in fields else {}), **({'limit':cap} if 'limit' in fields else {}), **({'is_closed':False} if 'is_closed' in fields else {}), **({'is_active':True} if 'is_active' in fields else {})}) for d in range(30) for rule in [WEEKDAY_RULES.get((today+timedelta(days=d)).weekday(), {'hours':[], 'capacity':0})] for h in rule['hours'] for cap in [rule['capacity']]]"
 
 echo "🚀 Starting server..."
 exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
