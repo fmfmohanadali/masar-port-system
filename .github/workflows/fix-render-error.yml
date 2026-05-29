@@ -23,7 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: "🔧 Fix build.sh - add migrate"
+      - name: "🔧 Fix build.sh - NO migrate here (DB not ready during build)"
         run: |
           cat > backend/build.sh << 'EOF'
           #!/usr/bin/env bash
@@ -32,17 +32,25 @@ jobs:
           pip install -r requirements.txt
           cd backend
           python manage.py collectstatic --noinput
-          python manage.py migrate --noinput
+          # NOTE: migrate runs in start.sh, NOT here
+          # because Render DB may not be available during build
           EOF
+          chmod +x backend/build.sh
 
-      - name: "🔧 Fix start.sh - match new model choices"
+      - name: "🔧 Fix start.sh - migrate here + match new model choices"
         run: |
           cat > backend/start.sh << 'STARTEOF'
           #!/usr/bin/env bash
+          set -o errexit
           cd backend
 
           echo "🔄 Running migrations..."
-          python manage.py migrate --noinput
+          # Retry migrate up to 3 times (Render free DB may be slow to wake)
+          for i in 1 2 3; do
+            python manage.py migrate --noinput && break
+            echo "⏳ Retry $i - waiting for database..."
+            sleep 5
+          done
 
           echo "📦 Seeding data (if needed)..."
           python manage.py shell -c "
@@ -103,13 +111,14 @@ jobs:
               print('Booking slots created')
           else:
               print('Booking slots already exist, skipping')
-          "
+          " || echo "⚠️ Seeding skipped (non-critical)"
 
           echo "🚀 Starting server..."
           exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
           STARTEOF
+          chmod +x backend/start.sh
 
-      - name: "🔧 Fix settings.py - add SSL for Render PostgreSQL"
+      - name: "🔧 Fix settings.py - proper DATABASE_URL with SSL"
         run: |
           cat > backend/config/settings.py << 'SETTINGSEOF'
           import os
@@ -176,11 +185,11 @@ jobs:
 
           WSGI_APPLICATION = "config.wsgi.application"
 
-          # --- Database ---
+          # --- Database Configuration ---
           DATABASE_URL = os.environ.get("DATABASE_URL")
 
           if DATABASE_URL:
-              # Render / Production: use DATABASE_URL
+              # Render / Production: always use DATABASE_URL when available
               DATABASES = {
                   "default": dj_database_url.config(
                       default=DATABASE_URL,
@@ -314,14 +323,18 @@ jobs:
           git config user.name "Masar Bot"
           git config user.email "bot@masar.local"
           git add -A
-          git commit -m "🔧 Fix Render 500 error
+          git commit -m "🔧 Fix Render build failure
 
-          - Add ssl_require=True for Render PostgreSQL connection
-          - Prioritize DATABASE_URL over DB_ENGINE settings
-          - Add migrate to build.sh (runs during Render build)
-          - Fix ScanPoint seed data to match new POINT_CHOICES
+          Root cause: migrate in build.sh fails because Render
+          PostgreSQL (free tier) is sleeping during build phase.
+
+          Fix:
+          - Remove migrate from build.sh (only collectstatic)
+          - Move migrate to start.sh with 3x retry + sleep
+          - Add ssl_require=True for Render PostgreSQL
+          - Prioritize DATABASE_URL over DB_ENGINE
+          - Fix ScanPoint seed values to match new POINT_CHOICES
           - Fix admin role to 'port_admin' (valid choice)
-          - Simplify BookingSlot seeding
           " || echo "No changes"
           git push
 
@@ -331,6 +344,7 @@ jobs:
           echo "  🎉 تم الإصلاح!"
           echo "========================================"
           echo ""
-          echo "الآن روح Render واضغط Manual Deploy"
-          echo "أو انتظر الـ Auto Deploy"
+          echo "⏭️ الخطوة التالية:"
+          echo "روح Render > Manual Deploy > Deploy latest commit"
           echo ""
+
