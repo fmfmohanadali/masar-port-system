@@ -1,0 +1,53 @@
+name: "🗃️ Fix Missing Migrations"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'اكتب "yes" للتأكيد'
+        required: true
+        default: 'no'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.inputs.confirm == 'yes'
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate migrations
+        run: |
+          cd backend
+          SECRET_KEY="temp-key-for-migrations" python manage.py makemigrations core --name="add_indexes_and_fields"
+
+      - name: Commit
+        run: |
+          git config user.name "Masar Bot"
+          git config user.email "bot@masar.local"
+          git add -A
+          git commit -m "🗃️ Add missing migration for new model fields
+
+          - ip_address on AuditLog
+          - is_active on Company, Driver
+          - db_index on multiple fields
+          - verbose_name on all models
+          - model indexes
+          " || echo "No changes"
+          git push
+
+      - name: Done
+        run: echo "✅ Migration files created! Render will auto-deploy."
