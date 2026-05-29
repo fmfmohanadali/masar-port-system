@@ -166,8 +166,8 @@ class TripViewSet(viewsets.ReadOnlyModelViewSet):
             trip.qr_token = trip.generate_qr_token()
             trip.save(update_fields=["qr_token"])
 
-          if not trip.qr_image:
-              trip.generate_qr_image()
+        if not trip.qr_image:
+            trip.generate_qr_image()
         return trip
 
     @action(detail=False, methods=["post"])
