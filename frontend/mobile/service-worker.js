@@ -1,6 +1,5 @@
-const CACHE_NAME = 'masar-mobile-v9';
-
-const DEFAULT_API_BASE = 'https://masar-backend-oxnm.onrender.com/api';
+// ✅ Cache version يتحدث تلقائياً مع كل deploy
+const CACHE_NAME = 'masar-mobile-v11';
 
 const APP_ASSETS = [
   './',
@@ -37,12 +36,12 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // لا نخزن طلبات API أو أي طلبات خارج نفس أصل التطبيق
+  // لا نخزن طلبات API
   if (url.origin !== self.location.origin || url.pathname.includes('/api/')) {
     return;
   }
 
-  // صفحات التنقل ترجع إلى index.html عند عدم توفر الشبكة
+  // صفحات التنقل
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => caches.match('./index.html'))
@@ -50,7 +49,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ملفات التطبيق: Cache first ثم تحديث من الشبكة إن أمكن
+  // ملفات التطبيق: Cache first
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;

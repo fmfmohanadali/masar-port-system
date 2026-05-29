@@ -58,6 +58,7 @@ canvas.qr-preview {
     code{word-break:break-all}
     @media (max-width:740px){.tabs{grid-template-columns:repeat(2,1fr)}}
   </style>
+<script src="./js/statusMap.js"></script>
 </head>
 <body>
   <header>
@@ -212,6 +213,17 @@ canvas.qr-preview {
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>>
 
   <script>
+
+// ✅ Auto-logout on 401
+function checkAuth(response) {
+  if (response && response.status === 401) {
+    localStorage.removeItem('masar_token');
+    localStorage.removeItem('masar_user');
+    location.reload();
+  }
+  return response;
+}
+
 const K = {
   token: 'masar_token_v2',
   queue: 'masar_queue_v2',
