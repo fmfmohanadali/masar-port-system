@@ -1,0 +1,77 @@
+name: Fix QR and AutoComplete
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fix views and services
+        run: |
+          cd backend/core
+
+          sed -i '/def _ensure_qr_token/,/return trip/{
+            /return trip/i\
+            \        if not trip.qr_image:\
+            \            trip.generate_qr_image()
+          }' views.py
+
+          sed -i '/obj\.linked_trip = trip/{
+            i\
+            \        trip.qr_token = trip.generate_qr_token()\
+            \        trip.save(update_fields=["qr_token"])\
+            \        trip.generate_qr_image()\
+
+          }' views.py
+
+          sed -i 's/Trip, ScanPoint, ScanEvent, Notification, AuditLog/Trip, ScanPoint, ScanEvent, Notification, AuditLog, TransportRequest/' services.py
+
+          mkdir -p ../media/qr_codes
+          touch ../media/qr_codes/.gitkeep
+
+          cd ../../..
+          rm -f .github/workflows/fix-qr-and-autocomplete1.yml
+          rm -f .github/workflows/fix-qr-and-autocomplete.yml
+          rm -f .github/workflows/fix-render-error.yml
+          rm -f .github/workflows/fix-migrations.yml
+
+      - name: Add auto-complete
+        run: |
+          cd backend/core
+          python3 -c "
+          with open('services.py','r') as f: code=f.read()
+          if 'AUTO_COMPLETE' not in code:
+            old='    return trip, event'
+            idx=code.rfind(old)
+            if idx>0:
+              new='''
+    if trip.status == \"DELIVERED\":
+        try:
+            tr = TransportRequest.objects.filter(linked_trip=trip).exclude(status__in=[\"COMPLETED\",\"CANCELLED\"]).first()
+            if tr:
+                tr.status = \"COMPLETED\"
+                tr.save(update_fields=[\"status\",\"updated_at\"])
+                create_notification(tr.requester,\"طلب نقل مكتمل\",f\"تم إكمال طلب النقل للحاوية {tr.container_no} بنجاح\")
+                audit(user,\"AUTO_COMPLETE\",\"TransportRequest\",tr.id,\"Auto-completed\")
+        except Exception as e:
+            logger.error(f\"auto-complete failed: {e}\")
+
+    return trip, event'''
+              code=code[:idx]+new+code[idx+len(old):]
+              with open('services.py','w') as f: f.write(code)
+              print('OK')
+          "
+
+      - name: Commit
+        run: |
+          git config user.name "Masar Bot"
+          git config user.email "bot@masar.local"
+          git add -A
+          git commit -m "Fix QR image + auto-complete transport requests" || true
+          git push
