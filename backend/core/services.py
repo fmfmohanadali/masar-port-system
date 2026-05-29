@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from .models import (
     UserProfile, Company, Driver, Truck, Container, BookingSlot,
-    Trip, ScanPoint, ScanEvent, Notification, AuditLog
+    Trip, ScanPoint, ScanEvent, Notification, AuditLog, TransportRequest
 )
 
 logger = logging.getLogger(__name__)
@@ -151,6 +151,18 @@ def scan_trip(*, token, point_type, user, note=''):
 
     audit(user, 'SCAN', 'Trip', trip.trip_code, f'{point_type} - {note}')
     logger.info(f"Trip {trip.trip_code} scanned at {point_type} by {user.username}")
+
+    if trip.status == 'DELIVERED':
+        try:
+            tr = TransportRequest.objects.filter(linked_trip=trip).exclude(status__in=['COMPLETED','CANCELLED']).first()
+            if tr:
+                tr.status = 'COMPLETED'
+                tr.save(update_fields=['status','updated_at'])
+                create_notification(tr.requester, 'طلب نقل مكتمل', f'تم إكمال طلب النقل للحاوية {tr.container_no}')
+                audit(user, 'AUTO_COMPLETE', 'TransportRequest', tr.id, 'Auto-completed')
+        except Exception as e:
+            logger.error(f'auto-complete failed: {e}')
+
     return trip, event
 
 
