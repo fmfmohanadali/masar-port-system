@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
+set -o errexit
 cd backend
 
 echo "🔄 Running migrations..."
-python manage.py migrate --noinput
+# Retry migrate up to 3 times (Render free DB may be slow to wake)
+for i in 1 2 3; do
+  python manage.py migrate --noinput && break
+  echo "⏳ Retry $i - waiting for database..."
+  sleep 5
+done
 
 echo "📦 Seeding data (if needed)..."
 python manage.py shell -c "
@@ -63,7 +69,7 @@ if not BookingSlot.objects.filter(date__gte=date.today()).exists():
     print('Booking slots created')
 else:
     print('Booking slots already exist, skipping')
-"
+" || echo "⚠️ Seeding skipped (non-critical)"
 
 echo "🚀 Starting server..."
 exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT

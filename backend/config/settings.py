@@ -62,11 +62,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# --- Database ---
+# --- Database Configuration ---
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if DATABASE_URL:
-    # Render / Production: use DATABASE_URL
+    # Render / Production: always use DATABASE_URL when available
     DATABASES = {
         "default": dj_database_url.config(
             default=DATABASE_URL,
