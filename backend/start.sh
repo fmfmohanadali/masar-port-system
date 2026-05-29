@@ -3,14 +3,9 @@ set -o errexit
 cd backend
 
 echo "🔄 Running migrations..."
-# Retry migrate up to 3 times (Render free DB may be slow to wake)
-for i in 1 2 3; do
-  python manage.py migrate --noinput && break
-  echo "⏳ Retry $i - waiting for database..."
-  sleep 5
-done
+python manage.py migrate --noinput
 
-echo "📦 Seeding data (if needed)..."
+echo "📦 Seeding data..."
 python manage.py shell -c "
 from datetime import date, timedelta
 from django.contrib.auth.models import User
@@ -35,7 +30,7 @@ ops_profile, _ = UserProfile.objects.get_or_create(user=ops)
 ops_profile.role = 'ops'
 ops_profile.save()
 
-# Scan Points - MUST match POINT_CHOICES in models.py
+# Scan Points
 points = [
     ('بوابة الدخول', 'ENTRY_GATE'),
     ('الرصيف', 'BERTH'),
@@ -69,7 +64,7 @@ if not BookingSlot.objects.filter(date__gte=date.today()).exists():
     print('Booking slots created')
 else:
     print('Booking slots already exist, skipping')
-" || echo "⚠️ Seeding skipped (non-critical)"
+"
 
 echo "🚀 Starting server..."
 exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
