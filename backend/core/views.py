@@ -1,4 +1,4 @@
-﻿from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate
 from django.db.models import Q
 from django.utils import timezone
 from django.http import JsonResponse
@@ -166,8 +166,9 @@ class TripViewSet(viewsets.ReadOnlyModelViewSet):
             trip.qr_token = trip.generate_qr_token()
             trip.save(update_fields=["qr_token"])
 
-            if not trip.qr_image:
-                trip.generate_qr_image()
+        if not trip.qr_image:
+            trip.generate_qr_image()
+
         return trip
 
     @action(detail=False, methods=["post"])
@@ -233,6 +234,7 @@ class BookingSlotViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response(BookingSlotSerializer(qs, many=True).data)
 
+
 class CompanyViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
@@ -249,6 +251,7 @@ class TruckViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Truck.objects.select_related('owner_company').filter(is_active=True)
     serializer_class = TruckSerializer
     permission_classes = [permissions.IsAuthenticated]
+
 
 class ScanPointViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ScanPoint.objects.filter(is_active=True)
@@ -585,9 +588,9 @@ class TransportRequestViewSet(viewsets.ModelViewSet):
                 notes=f"Transport request #{obj.id}",
             )
 
-          trip.qr_token = trip.generate_qr_token()
-          trip.save(update_fields=["qr_token"])
-              trip.generate_qr_image()
+            trip.qr_token = trip.generate_qr_token()
+            trip.save(update_fields=["qr_token"])
+            trip.generate_qr_image()
 
             obj.linked_trip = trip
 
@@ -603,6 +606,36 @@ class TransportRequestViewSet(viewsets.ModelViewSet):
         )
 
         return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=["get"])
+    def check_completion(self, request, pk=None):
+        obj = self.get_object()
+        if not obj.linked_trip:
+            return Response({
+                "can_complete": False,
+                "reason": "لا توجد رحلة مرتبطة",
+            })
+
+        trip = obj.linked_trip
+        passed = list(
+            trip.scan_events.select_related("scan_point")
+            .values_list("scan_point__point_type", flat=True)
+        )
+        all_points = ["ENTRY_GATE", "BERTH", "CUSTOMS_ZONE", "EXIT_GATE", "DELIVERY"]
+        missing = [p for p in all_points if p not in passed]
+        can_complete = trip.status == "DELIVERED" and len(missing) == 0
+
+        if can_complete and obj.status == "QR_ISSUED":
+            obj.status = "COMPLETED"
+            obj.save(update_fields=["status", "updated_at"])
+
+        return Response({
+            "can_complete": can_complete,
+            "trip_status": trip.status,
+            "scan_points_passed": passed,
+            "missing_points": missing,
+            "transport_status": obj.status,
+        })
 
 
 class TransportOfferViewSet(viewsets.ModelViewSet):
@@ -653,3 +686,4 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         notification.save(update_fields=["is_read"])
 
         return Response(NotificationSerializer(notification).data)
+
