@@ -1,4 +1,4 @@
-name: Fix QR and AutoComplete
+name: Fix indentation error
 
 on:
   workflow_dispatch:
@@ -12,72 +12,78 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Fix views.py
+      - name: Fix views.py indentation
+        shell: python3 {0}
         run: |
-          cd backend/core
+          with open("backend/core/views.py", "r") as f:
+              lines = f.readlines()
 
-          sed -i '/def _ensure_qr_token/,/return trip/{
-            /return trip/i\
-            \        if not trip.qr_image:\
-            \            trip.generate_qr_image()
-          }' views.py
+          fixed = []
+          i = 0
+          while i < len(lines):
+              line = lines[i]
+              stripped = line.strip()
+              if stripped == "if not trip.qr_image:":
+                  fixed.append("        if not trip.qr_image:\n")
+                  i += 1
+                  if i < len(lines) and "generate_qr_image" in lines[i]:
+                      fixed.append("            trip.generate_qr_image()\n")
+                      i += 1
+                  continue
+              fixed.append(line)
+              i += 1
 
-          sed -i '/obj\.linked_trip = trip/{
-            i\
-            \        trip.qr_token = trip.generate_qr_token()\
-            \        trip.save(update_fields=["qr_token"])\
-            \        trip.generate_qr_image()\
-
-          }' views.py
+          with open("backend/core/views.py", "w") as f:
+              f.writelines(fixed)
+          print("OK views.py fixed")
 
       - name: Fix services.py
-        run: |
-          cd backend/core
-          sed -i 's/Trip, ScanPoint, ScanEvent, Notification, AuditLog$/Trip, ScanPoint, ScanEvent, Notification, AuditLog, TransportRequest/' services.py
-
-      - name: Add auto-complete to services.py
         shell: python3 {0}
         run: |
           with open("backend/core/services.py", "r") as f:
               code = f.read()
+
+          if "TransportRequest" not in code:
+              code = code.replace(
+                  "Trip, ScanPoint, ScanEvent, Notification, AuditLog",
+                  "Trip, ScanPoint, ScanEvent, Notification, AuditLog, TransportRequest"
+              )
+
           if "AUTO_COMPLETE" not in code:
               old = "    return trip, event"
               idx = code.rfind(old)
               if idx > 0:
-                  new = "\n".join([
+                  lines = [
                       "",
+                      "    # Auto-complete TransportRequest when trip is DELIVERED",
                       "    if trip.status == 'DELIVERED':",
                       "        try:",
-                      "            tr = TransportRequest.objects.filter(linked_trip=trip).exclude(status__in=['COMPLETED','CANCELLED']).first()",
+                      "            tr = TransportRequest.objects.filter(",
+                      "                linked_trip=trip",
+                      "            ).exclude(status__in=['COMPLETED', 'CANCELLED']).first()",
                       "            if tr:",
                       "                tr.status = 'COMPLETED'",
-                      "                tr.save(update_fields=['status','updated_at'])",
-                      "                create_notification(tr.requester, 'طلب نقل مكتمل', f'تم إكمال طلب النقل للحاوية {tr.container_no}')",
-                      "                audit(user, 'AUTO_COMPLETE', 'TransportRequest', tr.id, 'Auto-completed')",
+                      "                tr.save(update_fields=['status', 'updated_at'])",
+                      "                create_notification(tr.requester, 'طلب نقل مكتمل',",
+                      "                    'تم إكمال طلب النقل بنجاح')",
+                      "                audit(user, 'AUTO_COMPLETE', 'TransportRequest',",
+                      "                    tr.id, 'Auto-completed')",
                       "        except Exception as e:",
-                      "            logger.error(f'auto-complete failed: {e}')",
+                      "            logger.error('auto-complete failed')",
                       "",
                       "    return trip, event",
-                  ])
-                  code = code[:idx] + new + code[idx+len(old):]
-                  with open("backend/core/services.py", "w") as f:
-                      f.write(code)
-                  print("OK: auto-complete added")
+                  ]
+                  new_code = "\n".join(lines)
+                  code = code[:idx] + new_code + code[idx + len(old):]
 
-      - name: Cleanup
-        run: |
-          mkdir -p backend/media/qr_codes
-          touch backend/media/qr_codes/.gitkeep
-          rm -f .github/workflows/fix-qr-and-autocomplete1.yml
-          rm -f .github/workflows/fix-qr-and-autocomplete.yml
-          rm -f .github/workflows/fix-render-error.yml
-          rm -f .github/workflows/fix-migrations.yml
-          rm -f .github/workflows/fix-all-workflows.yml
+          with open("backend/core/services.py", "w") as f:
+              f.write(code)
+          print("OK services.py fixed")
 
       - name: Commit
         run: |
           git config user.name "Masar Bot"
           git config user.email "bot@masar.local"
           git add -A
-          git commit -m "Fix QR image + auto-complete transport requests" || true
+          git commit -m "Fix indentation error and add auto-complete" || true
           git push
