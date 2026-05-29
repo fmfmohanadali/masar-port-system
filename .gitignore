@@ -1,22 +1,48 @@
-# Virtual environment
+# Python
+*.py[cod]
+*$py.class
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
 .venv/
 venv/
+env/
 
-# Python cache
-__pycache__/
-*.pyc
-
-# SQLite
-*.sqlite3
-backend/db.sqlite3
-
-# Django media
-backend/media/
-
-# Environment files
-.env
-.env.production
-
-# OS / Editor
-Thumbs.db
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
+
+# Django
+*.sqlite3
+db.sqlite3
+backend/db.sqlite3
+staticfiles/
+backend/staticfiles/
+backend/media/qr_codes/*
+!backend/media/qr_codes/.gitkeep
+
+# Environment - IMPORTANT
+.env
+.env.local
+.env.production
+!.env.example
+!.env.production.example
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
