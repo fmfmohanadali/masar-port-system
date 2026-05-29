@@ -295,4 +295,3 @@ jobs:
           echo "  ✅ إشعار للمخلص عند الاكتمال"
           echo ""
           echo "Render سيعمل auto-deploy"
-
