@@ -289,7 +289,7 @@ function api(path) {
       const res = await fetch(api(path), options);
       const ct = res.headers.get('content-type') || '';
       const data = ct.includes('application/json') ? await res.json() : await res.text();
-      if(!res.ok) throw new Error(data.detail || JSON.stringify(data));
+      if(!res.ok) throw new Error(data.errors?.detail || data.message || data.detail || JSON.stringify(data));
       return data;
     }
 
@@ -350,7 +350,7 @@ function jsString(value) {
      <div class="item">
       <div class="split wrap2">
         <div><strong>${t.container_no || "-"}</strong> — ${t.truck_plate || ""}</div>
-        <span class="pill ${statusClass(t.status)}">${t.status}</span>
+        <span class="pill ${statusClass(t.status)}">${typeof getStatusLabel === 'function' ? getStatusLabel(t.status) : t.status}</span>
       </div>
       <div class="small muted">السائق: ${t.driver_name || ""} | الوجهة: ${t.destination || ""}</div>
       <div class="small muted">الموعد: ${t.slot_label || ""}</div>
