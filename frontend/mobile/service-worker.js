@@ -1,5 +1,5 @@
 // ✅ Cache version يتحدث تلقائياً مع كل deploy
-const CACHE_NAME = 'masar-mobile-v11';
+const CACHE_NAME = 'masar-mobile-v13';
 
 const APP_ASSETS = [
   './',
