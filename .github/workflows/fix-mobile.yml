@@ -1,0 +1,52 @@
+name: Fix Mobile API Connection
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fix mobile request function
+        shell: python3 {0}
+        run: |
+          with open("frontend/mobile/index.html", "r", encoding="utf-8") as f:
+              code = f.read()
+
+          # Fix 1: Update request() to handle new API error format
+          old_request = "if(!res.ok) throw new Error(data.detail || JSON.stringify(data));"
+          new_request = "if(!res.ok) throw new Error(data.errors?.detail || data.message || data.detail || JSON.stringify(data));"
+
+          if old_request in code:
+              code = code.replace(old_request, new_request)
+              print("Fixed request() error handling")
+
+          # Fix 2: Update status display to use Arabic labels
+          old_status = """<span class="pill ${statusClass(t.status)}">${t.status}</span>"""
+          new_status = """<span class="pill ${statusClass(t.status)}">${typeof getStatusLabel === 'function' ? getStatusLabel(t.status) : t.status}</span>"""
+
+          if old_status in code:
+              code = code.replace(old_status, new_status)
+              print("Fixed status display to Arabic")
+
+          with open("frontend/mobile/index.html", "w", encoding="utf-8") as f:
+              f.write(code)
+          print("Done")
+
+      - name: Commit
+        run: |
+          git config user.name "Masar Bot"
+          git config user.email "bot@masar.local"
+          git add -A
+          git commit -m "Fix mobile app API connection
+
+          - Fix request() to handle new error format (errors.detail)
+          - Show Arabic status labels in trip cards
+          " || true
+          git push
+
