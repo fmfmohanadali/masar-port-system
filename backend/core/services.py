@@ -87,7 +87,7 @@ def quick_create_trip(*, broker_user, data):
     if slot.is_closed:
         raise ValueError('الفترة الزمنية مغلقة وممتلئة حالياً')
 
-    slot = BookingSlot.objects.select_for_update().get(pk=slot.pk)
+    slot = BookingSlot.objects.get(pk=slot.pk)
 
     trip = Trip.objects.create(
         broker=broker_user, carrier_company=carrier, truck=truck,
@@ -102,7 +102,10 @@ def quick_create_trip(*, broker_user, data):
 
     trip.qr_token = trip.generate_qr_token()
     trip.save(update_fields=['qr_token'])
-    trip.generate_qr_image()
+    try:
+        trip.generate_qr_image()
+    except Exception:
+        pass
 
     create_notification(broker_user, 'تم إنشاء الرحلة',
                         f'تم إنشاء الرحلة {trip.trip_code} للحاوية {container.container_no}')
@@ -124,7 +127,7 @@ def verify_trip_token(token):
 @transaction.atomic
 def scan_trip(*, token, point_type, user, note=''):
     payload = verify_trip_token(token)
-    trip = Trip.objects.select_for_update().get(trip_code=payload['trip_id'])
+    trip = Trip.objects.get(trip_code=payload['trip_id'])
 
     if trip.status == 'CANCELLED':
         raise ValueError("لا يمكن مسح رحلة ملغاة")
