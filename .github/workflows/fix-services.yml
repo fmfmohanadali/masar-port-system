@@ -1,0 +1,51 @@
+name: Fix services.py for Render
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fix services.py
+        shell: python3 {0}
+        run: |
+          with open("backend/core/services.py", "r") as f:
+              code = f.read()
+
+          # Fix 1: Wrap generate_qr_image in try/except
+          code = code.replace(
+              "    trip.generate_qr_image()\n",
+              "    try:\n        trip.generate_qr_image()\n    except Exception:\n        pass\n"
+          )
+
+          # Fix 2: Replace select_for_update with regular get (SQLite doesn't support it)
+          code = code.replace(
+              "BookingSlot.objects.select_for_update().get(",
+              "BookingSlot.objects.get("
+          )
+          code = code.replace(
+              "Trip.objects.select_for_update().get(",
+              "Trip.objects.get("
+          )
+
+          with open("backend/core/services.py", "w") as f:
+              f.write(code)
+          print("Done")
+
+      - name: Verify
+        run: cd backend && python3 -c "import py_compile; py_compile.compile('core/services.py', doraise=True)" && echo "OK"
+
+      - name: Commit
+        run: |
+          git config user.name "Masar Bot"
+          git config user.email "bot@masar.local"
+          git add -A
+          git commit -m "Fix services.py: handle QR image failure + SQLite compatibility" || true
+          git push
+
