@@ -1,0 +1,81 @@
+name: Fix QR image in models
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fix models.py - wrap generate_qr_image
+        shell: python3 {0}
+        run: |
+          with open("backend/core/models.py", "r") as f:
+              lines = f.readlines()
+
+          new_lines = []
+          inside_func = False
+          func_indent = ""
+          brace_count = 0
+
+          for i, line in enumerate(lines):
+              stripped = line.strip()
+
+              # Find the generate_qr_image function
+              if "def generate_qr_image(self):" in stripped:
+                  inside_func = True
+                  func_indent = line[:len(line) - len(line.lstrip())]
+                  # Write the def line
+                  new_lines.append(line)
+                  # Add try: after def
+                  new_lines.append(func_indent + "    try:\n")
+                  continue
+
+              if inside_func:
+                  # Check if we left the function (next def or class at same/lower indent)
+                  if stripped and not stripped.startswith("#"):
+                      current_indent = len(line) - len(line.lstrip())
+                      if current_indent <= len(func_indent) and stripped not in ("", ):
+                          # We're out of the function - add except before this line
+                          new_lines.append(func_indent + "    except Exception as e:\n")
+                          new_lines.append(func_indent + "        logger.warning(f'QR image skipped: {e}')\n")
+                          new_lines.append(func_indent + "        return ''\n")
+                          new_lines.append("\n")
+                          inside_func = False
+                          new_lines.append(line)
+                          continue
+
+                  # Indent existing lines by 4 more spaces
+                  if stripped:
+                      new_lines.append("    " + line)
+                  else:
+                      new_lines.append(line)
+                  continue
+
+              new_lines.append(line)
+
+          # If function was at end of file
+          if inside_func:
+              new_lines.append(func_indent + "    except Exception as e:\n")
+              new_lines.append(func_indent + "        logger.warning(f'QR image skipped: {e}')\n")
+              new_lines.append(func_indent + "        return ''\n")
+
+          with open("backend/core/models.py", "w") as f:
+              f.writelines(new_lines)
+
+          import py_compile
+          py_compile.compile("backend/core/models.py", doraise=True)
+          print("OK")
+
+      - name: Commit
+        run: |
+          git config user.name "Masar Bot"
+          git config user.email "bot@masar.local"
+          git add -A
+          git commit -m "Fix generate_qr_image: catch errors at model level" || true
+          git push
