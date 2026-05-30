@@ -167,7 +167,10 @@ class TripViewSet(viewsets.ReadOnlyModelViewSet):
             trip.save(update_fields=["qr_token"])
 
         if not trip.qr_image:
-            trip.generate_qr_image()
+            try:
+                trip.generate_qr_image()
+            except Exception:
+                pass
 
         return trip
 
@@ -590,7 +593,10 @@ class TransportRequestViewSet(viewsets.ModelViewSet):
 
             trip.qr_token = trip.generate_qr_token()
             trip.save(update_fields=["qr_token"])
-            trip.generate_qr_image()
+            try:
+                trip.generate_qr_image()
+            except Exception:
+                pass
 
             obj.linked_trip = trip
 
