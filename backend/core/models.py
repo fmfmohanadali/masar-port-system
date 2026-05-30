@@ -218,25 +218,30 @@ class Trip(TimeStampedModel):
         return signing.dumps(payload, salt=salt)
 
     def generate_qr_image(self):
-        if not self.qr_token:
-            self.qr_token = self.generate_qr_token()
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=8,
-            border=2
-        )
-        qr.add_data(self.qr_token)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color='black', back_color='white')
-        buffer = BytesIO()
-        img.save(buffer, format='PNG')
-        filename = f"trip_{self.trip_code}.png"
-        self.qr_image.save(filename, ContentFile(buffer.getvalue()), save=False)
-        super().save(update_fields=['qr_image'])
-        logger.info(f"QR image generated for trip {self.trip_code}")
-        return self.qr_image.url if self.qr_image else ''
+        try:
+            if not self.qr_token:
+                self.qr_token = self.generate_qr_token()
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=8,
+                border=2
+            )
+            qr.add_data(self.qr_token)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color='black', back_color='white')
+            buffer = BytesIO()
+            img.save(buffer, format='PNG')
+            filename = f"trip_{self.trip_code}.png"
+            self.qr_image.save(filename, ContentFile(buffer.getvalue()), save=False)
+            super().save(update_fields=['qr_image'])
+            logger.info(f"QR image generated for trip {self.trip_code}")
+            return self.qr_image.url if self.qr_image else ''
 
+
+        except Exception as e:
+            logger.warning(f'QR image skipped: {e}')
+            return ''
 
 class TransportRequest(TimeStampedModel):
     STATUS_CHOICES = [
